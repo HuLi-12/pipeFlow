@@ -51,7 +51,9 @@ class PipeFlowCheckIntegrationTest {
                 .collect(Collectors.groupingBy(CheckResult::getTaskId));
 
         assertEquals("Rain inlet A", byTask.get("T001").get(0).getStartNodeName());
-        assertTrue(byTask.get("T001").stream().allMatch(result -> "通道正常".equals(result.getStatus())));
+        // T001: 1 success (N001->N002->N003 RIVER) + 1 TERMINAL_HAS_DOWNSTREAM (N001->N002->N011→N003)
+        assertTrue(byTask.get("T001").stream().anyMatch(result -> "通道正常".equals(result.getStatus())));
+        assertTrue(byTask.get("T001").stream().anyMatch(result -> result.getErrorCode() == ErrorCode.TERMINAL_HAS_DOWNSTREAM));
         assertTrue(byTask.get("T002").stream().allMatch(result -> "通道正常".equals(result.getStatus())));
         assertTrue(byTask.get("T003").stream().anyMatch(result -> result.getErrorCode() == ErrorCode.CHANNEL_NOT_ALLOWED));
         assertTrue(byTask.get("T004").stream().anyMatch(result -> result.getErrorCode() == ErrorCode.INVALID_END));
@@ -117,8 +119,8 @@ class PipeFlowCheckIntegrationTest {
     private boolean hasErrorReason(Sheet resultSheet, String taskId, String errorCode) {
         for (int rowIndex = 1; rowIndex <= resultSheet.getLastRowNum(); rowIndex++) {
             if (taskId.equals(resultSheet.getRow(rowIndex).getCell(0).getStringCellValue())
-                    && errorCode.equals(resultSheet.getRow(rowIndex).getCell(8).getStringCellValue())) {
-                return !resultSheet.getRow(rowIndex).getCell(9).getStringCellValue().isBlank();
+                    && errorCode.equals(resultSheet.getRow(rowIndex).getCell(10).getStringCellValue())) {
+                return !resultSheet.getRow(rowIndex).getCell(11).getStringCellValue().isBlank();
             }
         }
         return false;

@@ -15,10 +15,16 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 @Service
 @RequiredArgsConstructor
 public class PipeCheckService {
+
+    /** 单条路径最大深度，防止 StackOverflow */
+    static final int MAX_DEPTH = 500;
+    /** 单 Task 最大路径数，防止无限扩展 */
+    static final int MAX_PATHS = 10000;
 
     private final RuleEngine ruleEngine;
     private final RuleConfigService ruleConfigService;
@@ -40,6 +46,7 @@ public class PipeCheckService {
                                               RuleDefinition rules) {
         CheckContext context = new CheckContext();
         context.setTask(task);
+        context.setPathCounter(new int[]{0});
         return dfs(task.getStartNodeId(), nodeMap, graph, context, rules);
     }
 
@@ -50,24 +57,49 @@ public class PipeCheckService {
                                   RuleDefinition rules) {
         List<CheckResult> results = new ArrayList<>();
 
+        // --- node existence ---
         if (!nodeMap.containsKey(currentNodeId)) {
-            results.add(error(context, nodeMap, currentNodeId, ErrorCode.NODE_NOT_FOUND, "节点不存在：" + currentNodeId));
+            results.add(error(context, nodeMap, currentNodeId, ErrorCode.NODE_NOT_FOUND,
+                    "节点不存在：" + currentNodeId));
             return results;
         }
 
+        // --- cycle detection ---
         if (context.getVisited().contains(currentNodeId)) {
-            context.getPath().add(currentNodeId);
-            results.add(error(context, nodeMap, currentNodeId, ErrorCode.CYCLE_FOUND, "检测到环路，节点：" + currentNodeId));
+            context.getNodePath().add(currentNodeId);
+            results.add(error(context, nodeMap, currentNodeId, ErrorCode.CYCLE_FOUND,
+                    "检测到环路，节点：" + currentNodeId));
+            return results;
+        }
+
+        // --- max depth protection ---
+        if (context.getNodePath().size() > MAX_DEPTH) {
+            results.add(error(context, nodeMap, currentNodeId, ErrorCode.PATH_TOO_DEEP,
+                    "路径超过最大深度 " + MAX_DEPTH + "，节点：" + currentNodeId));
+            return results;
+        }
+
+        // --- max path count protection ---
+        if (context.getPathCounter()[0] >= MAX_PATHS) {
             return results;
         }
 
         context.getVisited().add(currentNodeId);
-        context.getPath().add(currentNodeId);
+        context.getNodePath().add(currentNodeId);
 
         Node currentNode = nodeMap.get(currentNodeId);
         List<Edge> nextEdges = graph.getOrDefault(currentNodeId, Collections.emptyList());
 
+        // --- TERMINAL_HAS_DOWNSTREAM: terminal-type node still has outgoing edges ---
+        if (!nextEdges.isEmpty() && rules.getTerminalTypes().contains(currentNode.getNodeType())) {
+            results.add(error(context, nodeMap, currentNodeId, ErrorCode.TERMINAL_HAS_DOWNSTREAM,
+                    "终点类型节点 " + currentNode.getNodeName() + "(" + currentNode.getNodeType() + ") 存在下游边"));
+            return results;
+        }
+
+        // --- leaf / terminal node ---
         if (nextEdges.isEmpty()) {
+            context.getPathCounter()[0]++;
             boolean validEnd = ruleEngine.isValidEnd(
                     rules,
                     context.getTask().getStartType(),
@@ -88,17 +120,28 @@ public class PipeCheckService {
             return results;
         }
 
+        // --- branch traversal ---
         for (Edge edge : nextEdges) {
+            if (context.getPathCounter()[0] >= MAX_PATHS) {
+                break;
+            }
             CheckContext branch = context.copy();
+
             if (!ruleEngine.isChannelAllowed(rules, branch.getTask().getStartType(), edge.getChannelType())) {
-                branch.getPath().add(edge.getToNodeId());
+                branch.getNodePath().add(edge.getToNodeId());
+                context.getPathCounter()[0]++;
                 results.add(error(branch, nodeMap, edge.getToNodeId(), ErrorCode.CHANNEL_NOT_ALLOWED,
                         "入口类型 " + branch.getTask().getStartType() + " 不允许进入通道：" + edge.getChannelType()));
                 continue;
             }
+
             if (ruleEngine.shouldEnterSpecialState(rules, branch.getTask().getStartType(), edge.getChannelType())) {
                 branch.setEnteredSpecialChannel(true);
             }
+
+            // record the channel traversed
+            branch.getChannelPath().add(edge.getChannelType().name());
+
             results.addAll(dfs(edge.getToNodeId(), nodeMap, graph, branch, rules));
         }
         return results;
@@ -114,12 +157,15 @@ public class PipeCheckService {
                 .status("通道正常")
                 .endNodeId(endNode.getNodeId())
                 .endNodeName(endNode.getNodeName())
-                .path(String.join("->", context.getPath()))
+                .path(String.join("->", context.getNodePath()))
+                .channelPath(context.getChannelPath().isEmpty() ? "" : String.join("->", context.getChannelPath()))
+                .readablePath(buildReadablePath(context, nodeMap))
                 .riskLevel("无")
                 .build();
     }
 
-    private CheckResult error(CheckContext context, Map<String, Node> nodeMap, String endNodeId, ErrorCode code, String reason) {
+    private CheckResult error(CheckContext context, Map<String, Node> nodeMap, String endNodeId,
+                              ErrorCode code, String reason) {
         CheckTask task = context.getTask();
         return CheckResult.builder()
                 .taskId(task.getTaskId())
@@ -129,11 +175,50 @@ public class PipeCheckService {
                 .status("错误")
                 .endNodeId(endNodeId)
                 .endNodeName(nodeName(nodeMap, endNodeId))
-                .path(context.getPath().stream().collect(Collectors.joining("->")))
+                .path(context.getNodePath().stream().collect(Collectors.joining("->")))
+                .channelPath(context.getChannelPath().isEmpty() ? "" : String.join("->", context.getChannelPath()))
+                .readablePath(buildReadablePath(context, nodeMap))
                 .errorCode(code)
                 .errorReason(reason)
-                .riskLevel(code == ErrorCode.DEAD_END || code == ErrorCode.CYCLE_FOUND ? "中" : "高")
+                .riskLevel(riskLevel(code))
                 .build();
+    }
+
+    private String buildReadablePath(CheckContext context, Map<String, Node> nodeMap) {
+        List<String> nodePath = context.getNodePath();
+        List<String> channelPath = context.getChannelPath();
+        if (nodePath.isEmpty()) {
+            return "";
+        }
+        StringBuilder sb = new StringBuilder();
+        sb.append(formatNode(nodeMap, nodePath.get(0)));
+        int channelCount = Math.min(channelPath.size(), nodePath.size() - 1);
+        for (int i = 0; i < channelCount; i++) {
+            sb.append(" --").append(channelPath.get(i)).append("--> ");
+            sb.append(formatNode(nodeMap, nodePath.get(i + 1)));
+        }
+        // if nodePath has more nodes than channels (e.g. last node didn't traverse an edge)
+        for (int i = channelCount + 1; i < nodePath.size(); i++) {
+            sb.append(" -> ");
+            sb.append(formatNode(nodeMap, nodePath.get(i)));
+        }
+        return sb.toString();
+    }
+
+    private String formatNode(Map<String, Node> nodeMap, String nodeId) {
+        Node node = nodeMap.get(nodeId);
+        if (node == null) {
+            return nodeId;
+        }
+        return node.getNodeName() + "(" + nodeId + ")";
+    }
+
+    private String riskLevel(ErrorCode code) {
+        if (code == ErrorCode.DEAD_END || code == ErrorCode.CYCLE_FOUND
+                || code == ErrorCode.PATH_TOO_DEEP || code == ErrorCode.TERMINAL_HAS_DOWNSTREAM) {
+            return "中";
+        }
+        return "高";
     }
 
     private String nodeName(Map<String, Node> nodeMap, String nodeId) {

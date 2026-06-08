@@ -277,6 +277,7 @@
         <button id="submitButton" type="submit">开始检测</button>
         <a class="download" href="/api/pipe-flow/template">下载标准模板</a>
         <a class="download" id="downloadLink" hidden>下载结果 Excel</a>
+        <a class="download" id="downloadZipLink" hidden>下载结果 ZIP</a>
     </form>
 
     <div class="status" id="statusText">请选择包含 Nodes、Edges、Tasks 的 .xlsx 文件。</div>
@@ -330,6 +331,7 @@
     const fileInput = document.getElementById('fileInput');
     const submitButton = document.getElementById('submitButton');
     const downloadLink = document.getElementById('downloadLink');
+    const downloadZipLink = document.getElementById('downloadZipLink');
     const statusText = document.getElementById('statusText');
     const summaryTable = document.getElementById('summaryTable');
     const resultTable = document.getElementById('resultTable');
@@ -356,7 +358,9 @@
         ['status', '状态'],
         ['endNodeId', '终点编号'],
         ['endNodeName', '终点名称'],
-        ['path', '路径'],
+        ['path', '节点路径'],
+        ['channelPath', '通道路径'],
+        ['readablePath', '可读路径'],
         ['errorCode', '错误编码'],
         ['errorReason', '错误原因'],
         ['riskLevel', '风险']
@@ -376,6 +380,7 @@
 
         submitButton.disabled = true;
         downloadLink.hidden = true;
+        downloadZipLink.hidden = true;
         setStatus('正在检测...');
         clearTables();
 
@@ -408,20 +413,32 @@
     async function prepareDownload(file) {
         const formData = new FormData();
         formData.append('file', file);
-        const response = await fetch('/api/pipe-flow/check', {
+
+        // Excel download
+        const xlsxRes = await fetch('/api/pipe-flow/check', {
             method: 'POST',
             body: formData
         });
-        if (!response.ok) {
-            return;
+        if (xlsxRes.ok) {
+            const blob = await xlsxRes.blob();
+            if (downloadLink.href) URL.revokeObjectURL(downloadLink.href);
+            downloadLink.href = URL.createObjectURL(blob);
+            downloadLink.download = 'pipe-flow-check-result.xlsx';
+            downloadLink.hidden = false;
         }
-        const blob = await response.blob();
-        if (downloadLink.href) {
-            URL.revokeObjectURL(downloadLink.href);
+
+        // ZIP download (reuse formData)
+        const zipRes = await fetch('/api/pipe-flow/check-zip', {
+            method: 'POST',
+            body: formData
+        });
+        if (zipRes.ok) {
+            const blob = await zipRes.blob();
+            if (downloadZipLink.href) URL.revokeObjectURL(downloadZipLink.href);
+            downloadZipLink.href = URL.createObjectURL(blob);
+            downloadZipLink.download = 'pipe-flow-check-result.zip';
+            downloadZipLink.hidden = false;
         }
-        downloadLink.href = URL.createObjectURL(blob);
-        downloadLink.download = 'pipe-flow-check-result.xlsx';
-        downloadLink.hidden = false;
     }
 
     function renderTable(container, columns, rows) {

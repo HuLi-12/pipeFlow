@@ -9,6 +9,8 @@ import com.example.pipeflowcheck.service.GraphBuildService;
 import com.example.pipeflowcheck.service.PipeCheckService;
 import com.example.pipeflowcheck.service.ResultSummaryService;
 import com.example.pipeflowcheck.service.TemplateWriteService;
+import com.example.pipeflowcheck.service.VisualizationService;
+import com.example.pipeflowcheck.service.ZipPackagingService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -21,7 +23,10 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 @RestController
 @RequestMapping("/api/pipe-flow")
@@ -34,6 +39,8 @@ public class PipeCheckController {
     private final ExcelWriteService excelWriteService;
     private final ResultSummaryService resultSummaryService;
     private final TemplateWriteService templateWriteService;
+    private final VisualizationService visualizationService;
+    private final ZipPackagingService zipPackagingService;
 
     @PostMapping("/check")
     public ResponseEntity<byte[]> check(@RequestParam("file") MultipartFile file) throws IOException {
@@ -44,6 +51,27 @@ public class PipeCheckController {
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=pipe-flow-check-result.xlsx")
                 .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
                 .body(report);
+    }
+
+    @PostMapping("/check-zip")
+    public ResponseEntity<byte[]> checkZip(@RequestParam("file") MultipartFile file) throws IOException {
+        List<CheckResult> results = detect(file);
+        byte[] report = excelWriteService.write(results);
+
+        // get visualization DOT
+        PipeNetworkData data = parseUpload(file);
+        Set<String> errorNodeIds = visualizationService.collectErrorNodeIds(results);
+        String dotSource = visualizationService.generateDot(data.getNodeMap(), data.getEdges(), errorNodeIds);
+
+        byte[] zip = zipPackagingService.packageZip(Map.of(
+                "pipe-flow-check-result.xlsx", report,
+                "pipe-network-graph.dot", dotSource.getBytes(StandardCharsets.UTF_8)
+        ));
+
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=pipe-flow-check-result.zip")
+                .contentType(MediaType.parseMediaType("application/zip"))
+                .body(zip);
     }
 
     @PostMapping("/check-json")
@@ -62,12 +90,16 @@ public class PipeCheckController {
 
     private List<CheckResult> detect(MultipartFile file) throws IOException {
         validateUpload(file);
-        PipeNetworkData data = excelReadService.read(file.getInputStream());
+        PipeNetworkData data = parseUpload(file);
         return pipeCheckService.checkAll(
                 data.getNodeMap(),
                 graphBuildService.buildGraph(data.getEdges()),
                 data.getTasks()
         );
+    }
+
+    private PipeNetworkData parseUpload(MultipartFile file) throws IOException {
+        return excelReadService.read(file.getInputStream());
     }
 
     private void validateUpload(MultipartFile file) {

@@ -28,6 +28,8 @@ public class ExcelWriteService {
             "end_node_id",
             "end_node_name",
             "path",
+            "channel_path",
+            "readable_path",
             "error_code",
             "error_reason",
             "risk_level"
@@ -82,9 +84,11 @@ public class ExcelWriteService {
         row.createCell(5).setCellValue(value(result.getEndNodeId()));
         row.createCell(6).setCellValue(value(result.getEndNodeName()));
         row.createCell(7).setCellValue(value(result.getPath()));
-        row.createCell(8).setCellValue(result.getErrorCode() == null ? "" : result.getErrorCode().name());
-        row.createCell(9).setCellValue(value(result.getErrorReason()));
-        row.createCell(10).setCellValue(value(result.getRiskLevel()));
+        row.createCell(8).setCellValue(value(result.getChannelPath()));
+        row.createCell(9).setCellValue(value(result.getReadablePath()));
+        row.createCell(10).setCellValue(result.getErrorCode() == null ? "" : result.getErrorCode().name());
+        row.createCell(11).setCellValue(value(result.getErrorReason()));
+        row.createCell(12).setCellValue(value(result.getRiskLevel()));
     }
 
     private void writeSummary(Sheet sheet, List<TaskSummary> summaries) {

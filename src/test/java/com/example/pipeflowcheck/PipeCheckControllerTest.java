@@ -10,6 +10,8 @@ import com.example.pipeflowcheck.service.ResultSummaryService;
 import com.example.pipeflowcheck.service.RuleConfigService;
 import com.example.pipeflowcheck.service.RuleEngine;
 import com.example.pipeflowcheck.service.TemplateWriteService;
+import com.example.pipeflowcheck.service.VisualizationService;
+import com.example.pipeflowcheck.service.ZipPackagingService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.poi.ss.usermodel.Workbook;
@@ -150,7 +152,9 @@ class PipeCheckControllerTest {
                 new PipeCheckService(new RuleEngine(), new RuleConfigService()),
                 new ExcelWriteService(new ResultSummaryService()),
                 new ResultSummaryService(),
-                new TemplateWriteService()
+                new TemplateWriteService(),
+                new VisualizationService(),
+                new ZipPackagingService()
         );
     }
 }

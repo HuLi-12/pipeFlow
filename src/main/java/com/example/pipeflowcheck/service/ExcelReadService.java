@@ -19,11 +19,12 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.HashSet;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 public class ExcelReadService {
@@ -36,9 +37,40 @@ public class ExcelReadService {
             List<Edge> edges = readEdges(requiredSheet(workbook, "Edges"));
             List<CheckTask> tasks = readTasks(requiredSheet(workbook, "Tasks"));
             validateEdgeReferences(nodeMap, edges);
+            validateGraphIntegrity(nodeMap, edges, tasks);
             return new PipeNetworkData(nodeMap, edges, tasks);
         } catch (IOException e) {
             throw new IllegalArgumentException("Excel 读取失败", e);
+        }
+    }
+
+    /**
+     * Graph integrity checks:
+     * 1. All task start_node_id must exist in nodeMap
+     * 2. Warn about orphan nodes (nodes not connected by any edge)
+     */
+    private void validateGraphIntegrity(Map<String, Node> nodeMap, List<Edge> edges, List<CheckTask> tasks) {
+        // check task start nodes exist
+        for (CheckTask task : tasks) {
+            if (!nodeMap.containsKey(task.getStartNodeId())) {
+                System.out.println("警告：任务 " + task.getTaskId()
+                        + " 的起点节点 " + task.getStartNodeId() + " 不存在于 Nodes 表中");
+            }
+        }
+
+        // detect orphan nodes (not appearing in any edge as from or to)
+        Set<String> connectedNodes = new HashSet<>();
+        for (Edge edge : edges) {
+            connectedNodes.add(edge.getFromNodeId());
+            connectedNodes.add(edge.getToNodeId());
+        }
+        List<String> orphanNodes = nodeMap.keySet().stream()
+                .filter(nid -> !connectedNodes.contains(nid))
+                .toList();
+        if (!orphanNodes.isEmpty()) {
+            // orphan nodes are warnings, not errors — they might be intentional
+            System.out.println("警告：以下节点未参与任何管道连接（孤立节点）："
+                    + String.join(", ", orphanNodes));
         }
     }
 
