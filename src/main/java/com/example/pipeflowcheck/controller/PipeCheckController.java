@@ -55,18 +55,28 @@ public class PipeCheckController {
 
     @PostMapping("/check-zip")
     public ResponseEntity<byte[]> checkZip(@RequestParam("file") MultipartFile file) throws IOException {
-        List<CheckResult> results = detect(file);
+        validateUpload(file);
+        PipeNetworkData data = parseUpload(file);
+        List<CheckResult> results = pipeCheckService.checkAll(
+                data.getNodeMap(),
+                graphBuildService.buildGraph(data.getEdges()),
+                data.getTasks()
+        );
         byte[] report = excelWriteService.write(results);
 
-        // get visualization DOT
-        PipeNetworkData data = parseUpload(file);
         Set<String> errorNodeIds = visualizationService.collectErrorNodeIds(results);
-        String dotSource = visualizationService.generateDot(data.getNodeMap(), data.getEdges(), errorNodeIds);
+        Set<String> errorEdgeKeys = visualizationService.collectErrorEdgeKeys(results);
+        String dotSource = visualizationService.generateDot(data.getNodeMap(), data.getEdges(), errorNodeIds, errorEdgeKeys);
 
-        byte[] zip = zipPackagingService.packageZip(Map.of(
-                "pipe-flow-check-result.xlsx", report,
-                "pipe-network-graph.dot", dotSource.getBytes(StandardCharsets.UTF_8)
-        ));
+        var zipEntries = new java.util.LinkedHashMap<String, byte[]>();
+        zipEntries.put("pipe-flow-check-result.xlsx", report);
+        zipEntries.put("pipe-network-graph.dot", dotSource.getBytes(StandardCharsets.UTF_8));
+        // try rendering SVG; if it fails, zip still contains xlsx + dot
+        String svgSource = visualizationService.renderSvg(dotSource);
+        if (!svgSource.isEmpty()) {
+            zipEntries.put("pipe-network-graph.svg", svgSource.getBytes(StandardCharsets.UTF_8));
+        }
+        byte[] zip = zipPackagingService.packageZip(zipEntries);
 
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=pipe-flow-check-result.zip")

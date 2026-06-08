@@ -4,8 +4,13 @@ import com.example.pipeflowcheck.enums.NodeType;
 import com.example.pipeflowcheck.model.CheckResult;
 import com.example.pipeflowcheck.model.Edge;
 import com.example.pipeflowcheck.model.Node;
+import guru.nidi.graphviz.engine.Format;
+import guru.nidi.graphviz.engine.Graphviz;
+import guru.nidi.graphviz.engine.GraphvizException;
+import guru.nidi.graphviz.parse.Parser;
 import org.springframework.stereotype.Service;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -38,9 +43,11 @@ public class VisualizationService {
      * @param nodeMap       node map
      * @param edges         edge list
      * @param errorNodeIds  set of node IDs that appear in error paths (to mark red)
+     * @param errorEdgeKeys set of "from->to" edge keys that are on error paths (to mark red)
      * @return DOT format string
      */
-    public String generateDot(Map<String, Node> nodeMap, List<Edge> edges, Set<String> errorNodeIds) {
+    public String generateDot(Map<String, Node> nodeMap, List<Edge> edges,
+                              Set<String> errorNodeIds, Set<String> errorEdgeKeys) {
         StringBuilder sb = new StringBuilder();
         sb.append("digraph PipeFlow {\n");
         sb.append("  rankdir=LR;\n");
@@ -71,10 +78,14 @@ public class VisualizationService {
 
         // edge definitions
         for (Edge edge : edges) {
+            String edgeKey = edge.getFromNodeId() + "->" + edge.getToNodeId();
             sb.append("  \"").append(edge.getFromNodeId())
                     .append("\" -> \"").append(edge.getToNodeId())
-                    .append("\" [label=\"").append(edge.getChannelType())
-                    .append("\"];\n");
+                    .append("\" [label=\"").append(edge.getChannelType());
+            if (errorEdgeKeys.contains(edgeKey)) {
+                sb.append("\", color=\"red\", penwidth=3");
+            }
+            sb.append("\"];\n");
         }
 
         sb.append("}\n");
@@ -85,16 +96,45 @@ public class VisualizationService {
      * Overload without error info (for template/full-graph usage).
      */
     public String generateDot(Map<String, Node> nodeMap, List<Edge> edges) {
-        return generateDot(nodeMap, edges, Set.of());
+        return generateDot(nodeMap, edges, Set.of(), Set.of());
     }
 
     /**
-     * Collect node IDs that appear in error results for visualization highlighting.
+     * Collect ALL node IDs from error paths (not just start/end), for red-highlighting.
      */
     public Set<String> collectErrorNodeIds(List<CheckResult> results) {
         return results.stream()
                 .filter(r -> r.getErrorCode() != null)
-                .flatMap(r -> List.of(r.getStartNodeId(), r.getEndNodeId()).stream())
+                .flatMap(r -> Arrays.stream(r.getPath().split("->")))
+                .filter(id -> !id.isEmpty())
                 .collect(Collectors.toSet());
+    }
+
+    /**
+     * Collect edge keys ("from->to") from error paths for red-highlighting edges.
+     */
+    public Set<String> collectErrorEdgeKeys(List<CheckResult> results) {
+        return results.stream()
+                .filter(r -> r.getErrorCode() != null)
+                .flatMap(r -> {
+                    String[] nodes = r.getPath().split("->");
+                    if (nodes.length < 2) return java.util.stream.Stream.empty();
+                    return java.util.stream.IntStream.range(0, nodes.length - 1)
+                            .mapToObj(i -> nodes[i] + "->" + nodes[i + 1]);
+                })
+                .collect(Collectors.toSet());
+    }
+
+    /**
+     * Render DOT source to SVG string using graphviz-java.
+     * Falls back to empty string if rendering fails.
+     */
+    public String renderSvg(String dotSource) {
+        try {
+            return Graphviz.fromString(dotSource).render(Format.SVG).toString();
+        } catch (GraphvizException e) {
+            System.err.println("SVG 渲染失败，仅输出 DOT 文件: " + e.getMessage());
+            return "";
+        }
     }
 }

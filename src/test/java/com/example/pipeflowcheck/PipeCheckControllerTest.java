@@ -72,8 +72,8 @@ class PipeCheckControllerTest {
 
         assertEquals("application/json", result.getResponse().getContentType());
         JsonNode root = new ObjectMapper().readTree(result.getResponse().getContentAsByteArray());
-        assertEquals(9, root.get("results").size());
-        assertEquals(6, root.get("summary").size());
+        assertEquals(8, root.get("results").size());
+        assertEquals(5, root.get("summary").size());
         assertEquals("MULTI_PATH_ERROR", root.get("summary").get(2).get("errorCode").asText());
     }
 

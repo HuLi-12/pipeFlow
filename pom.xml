@@ -47,6 +47,12 @@
             <version>2.2</version>
             <scope>test</scope>
         </dependency>
+        <!-- Graphviz DOT → SVG rendering -->
+        <dependency>
+            <groupId>guru.nidi</groupId>
+            <artifactId>graphviz-java</artifactId>
+            <version>0.18.1</version>
+        </dependency>
     </dependencies>
     <build>
         <plugins>

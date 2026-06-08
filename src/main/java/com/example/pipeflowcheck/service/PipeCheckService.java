@@ -72,8 +72,11 @@ public class PipeCheckService {
             return results;
         }
 
-        // --- max depth protection ---
-        if (context.getNodePath().size() > MAX_DEPTH) {
+        context.getVisited().add(currentNodeId);
+        context.getNodePath().add(currentNodeId);
+
+        // --- max depth protection (check after adding, so depth includes current node) ---
+        if (context.getNodePath().size() >= MAX_DEPTH) {
             results.add(error(context, nodeMap, currentNodeId, ErrorCode.PATH_TOO_DEEP,
                     "路径超过最大深度 " + MAX_DEPTH + "，节点：" + currentNodeId));
             return results;
@@ -81,11 +84,10 @@ public class PipeCheckService {
 
         // --- max path count protection ---
         if (context.getPathCounter()[0] >= MAX_PATHS) {
+            results.add(error(context, nodeMap, currentNodeId, ErrorCode.TOO_MANY_PATHS,
+                    "下游路径数量超过最大限制 " + MAX_PATHS + "，节点：" + currentNodeId));
             return results;
         }
-
-        context.getVisited().add(currentNodeId);
-        context.getNodePath().add(currentNodeId);
 
         Node currentNode = nodeMap.get(currentNodeId);
         List<Edge> nextEdges = graph.getOrDefault(currentNodeId, Collections.emptyList());
@@ -215,7 +217,8 @@ public class PipeCheckService {
 
     private String riskLevel(ErrorCode code) {
         if (code == ErrorCode.DEAD_END || code == ErrorCode.CYCLE_FOUND
-                || code == ErrorCode.PATH_TOO_DEEP || code == ErrorCode.TERMINAL_HAS_DOWNSTREAM) {
+                || code == ErrorCode.PATH_TOO_DEEP || code == ErrorCode.TERMINAL_HAS_DOWNSTREAM
+                || code == ErrorCode.TOO_MANY_PATHS) {
             return "中";
         }
         return "高";

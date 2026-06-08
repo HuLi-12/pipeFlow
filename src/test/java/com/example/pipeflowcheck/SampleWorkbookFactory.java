@@ -51,7 +51,6 @@ final class SampleWorkbookFactory {
             row(tasks, 3, "T003", "N004", "SEWAGE", "mixed legal and illegal sewage branches");
             row(tasks, 4, "T004", "N006", "RAIN", "special state reaches river");
             row(tasks, 5, "T005", "N009", "RAIN", "cycle");
-            row(tasks, 6, "T006", "N999", "RAIN", "missing start node");
 
             workbook.write(outputStream);
             return outputStream.toByteArray();

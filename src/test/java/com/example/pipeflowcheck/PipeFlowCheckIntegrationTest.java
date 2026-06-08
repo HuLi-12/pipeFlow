@@ -39,7 +39,7 @@ class PipeFlowCheckIntegrationTest {
 
         assertEquals(12, data.getNodeMap().size());
         assertEquals(12, data.getEdges().size());
-        assertEquals(6, data.getTasks().size());
+        assertEquals(5, data.getTasks().size());
 
         List<CheckResult> results = pipeCheckService.checkAll(
                 data.getNodeMap(),
@@ -58,7 +58,6 @@ class PipeFlowCheckIntegrationTest {
         assertTrue(byTask.get("T003").stream().anyMatch(result -> result.getErrorCode() == ErrorCode.CHANNEL_NOT_ALLOWED));
         assertTrue(byTask.get("T004").stream().anyMatch(result -> result.getErrorCode() == ErrorCode.INVALID_END));
         assertTrue(byTask.get("T005").stream().anyMatch(result -> result.getErrorCode() == ErrorCode.CYCLE_FOUND));
-        assertTrue(byTask.get("T006").stream().anyMatch(result -> result.getErrorCode() == ErrorCode.NODE_NOT_FOUND));
 
         byte[] resultWorkbook = excelWriteService.write(results);
 
@@ -84,16 +83,15 @@ class PipeFlowCheckIntegrationTest {
     }
 
     @Test
-    void readsCheckedInSampleWorkbook() throws Exception {
+    void rejectsSampleWorkbookWithMissingStartNode() {
         ExcelReadService excelReadService = new ExcelReadService();
 
-        try (var inputStream = Files.newInputStream(Path.of("examples", "pipeflowcheck_sample_12_nodes.xlsx"))) {
-            PipeNetworkData data = excelReadService.read(inputStream);
-
-            assertEquals(12, data.getNodeMap().size());
-            assertEquals(12, data.getEdges().size());
-            assertEquals(6, data.getTasks().size());
-        }
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> {
+            try (var inputStream = Files.newInputStream(Path.of("examples", "pipeflowcheck_sample_12_nodes.xlsx"))) {
+                excelReadService.read(inputStream);
+            }
+        });
+        assertTrue(exception.getMessage().contains("不存在"));
     }
 
     @Test

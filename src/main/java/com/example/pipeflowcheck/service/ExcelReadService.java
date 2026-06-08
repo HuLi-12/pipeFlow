@@ -7,6 +7,10 @@ import com.example.pipeflowcheck.model.CheckTask;
 import com.example.pipeflowcheck.model.Edge;
 import com.example.pipeflowcheck.model.Node;
 import com.example.pipeflowcheck.model.PipeNetworkData;
+
+import java.util.EnumSet;
+import java.util.Map;
+import java.util.Set;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.DataFormatter;
 import org.apache.poi.ss.usermodel.Row;
@@ -46,16 +50,18 @@ public class ExcelReadService {
 
     /**
      * Graph integrity checks:
-     * 1. All task start_node_id must exist in nodeMap
-     * 2. Warn about orphan nodes (nodes not connected by any edge)
+     * 1. All task start_node_id must exist in nodeMap (hard validation)
+     * 2. Task start_type must be compatible with node_type
+     * 3. Warn about orphan nodes (nodes not connected by any edge)
      */
     private void validateGraphIntegrity(Map<String, Node> nodeMap, List<Edge> edges, List<CheckTask> tasks) {
-        // check task start nodes exist
         for (CheckTask task : tasks) {
-            if (!nodeMap.containsKey(task.getStartNodeId())) {
-                System.out.println("警告：任务 " + task.getTaskId()
+            Node startNode = nodeMap.get(task.getStartNodeId());
+            if (startNode == null) {
+                throw new IllegalArgumentException("任务 " + task.getTaskId()
                         + " 的起点节点 " + task.getStartNodeId() + " 不存在于 Nodes 表中");
             }
+            validateStartNodeType(task, startNode);
         }
 
         // detect orphan nodes (not appearing in any edge as from or to)
@@ -68,9 +74,25 @@ public class ExcelReadService {
                 .filter(nid -> !connectedNodes.contains(nid))
                 .toList();
         if (!orphanNodes.isEmpty()) {
-            // orphan nodes are warnings, not errors — they might be intentional
             System.out.println("警告：以下节点未参与任何管道连接（孤立节点）："
                     + String.join(", ", orphanNodes));
+        }
+    }
+
+    /** Validates that the task's start_type is compatible with the node's type. */
+    private void validateStartNodeType(CheckTask task, Node node) {
+        Map<StartType, Set<NodeType>> allowed = Map.of(
+                StartType.RAIN, Set.of(NodeType.RAIN_INLET, NodeType.RAIN_WELL, NodeType.COMBINED_WELL),
+                StartType.SEWAGE, Set.of(NodeType.SEWAGE_INLET, NodeType.SEWAGE_WELL, NodeType.COMBINED_WELL),
+                StartType.LIFE_SEWAGE, Set.of(NodeType.LIFE_SEWAGE_INLET, NodeType.SEWAGE_WELL, NodeType.COMBINED_WELL),
+                StartType.CUSTOM, EnumSet.allOf(NodeType.class)
+        );
+        Set<NodeType> compatible = allowed.getOrDefault(task.getStartType(), Set.of());
+        if (!compatible.contains(node.getNodeType())) {
+            throw new IllegalArgumentException("任务 " + task.getTaskId()
+                    + " 的 start_type=" + task.getStartType()
+                    + "，但起点节点 " + node.getNodeId() + " 的类型为 " + node.getNodeType()
+                    + "，不兼容");
         }
     }
 
