@@ -1,0 +1,474 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>PipeFlowCheck</title>
+    <style>
+        :root {
+            color-scheme: light;
+            --bg: #f6f8fb;
+            --panel: #ffffff;
+            --text: #1f2937;
+            --muted: #64748b;
+            --line: #d7dee8;
+            --blue: #2563eb;
+            --blue-dark: #1d4ed8;
+            --red: #b91c1c;
+            --green: #047857;
+            --amber: #b45309;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            background: var(--bg);
+            color: var(--text);
+            font-family: Arial, "Microsoft YaHei", sans-serif;
+            font-size: 14px;
+        }
+
+        header {
+            background: var(--panel);
+            border-bottom: 1px solid var(--line);
+            padding: 18px 24px;
+        }
+
+        h1 {
+            margin: 0;
+            font-size: 22px;
+            font-weight: 700;
+        }
+
+        main {
+            width: min(1180px, calc(100vw - 32px));
+            margin: 20px auto 40px;
+        }
+
+        .toolbar {
+            display: grid;
+            grid-template-columns: minmax(260px, 1fr) auto auto auto;
+            gap: 12px;
+            align-items: end;
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            padding: 16px;
+        }
+
+        label {
+            display: block;
+            color: var(--muted);
+            font-size: 13px;
+            margin-bottom: 6px;
+        }
+
+        input[type="file"] {
+            width: 100%;
+            border: 1px solid var(--line);
+            border-radius: 6px;
+            background: #fff;
+            padding: 9px;
+        }
+
+        button, .download {
+            height: 38px;
+            border: 0;
+            border-radius: 6px;
+            padding: 0 14px;
+            background: var(--blue);
+            color: #fff;
+            cursor: pointer;
+            font-weight: 600;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            white-space: nowrap;
+        }
+
+        button:hover, .download:hover {
+            background: var(--blue-dark);
+        }
+
+        button:disabled {
+            background: #94a3b8;
+            cursor: not-allowed;
+        }
+
+        .download[hidden] {
+            display: none;
+        }
+
+        .status {
+            margin: 12px 0;
+            min-height: 22px;
+            color: var(--muted);
+        }
+
+        .status.error {
+            color: var(--red);
+        }
+
+        .section {
+            margin-top: 16px;
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .template-grid {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 12px;
+            padding: 14px;
+        }
+
+        .template-block {
+            border: 1px solid var(--line);
+            border-radius: 6px;
+            padding: 12px;
+            min-width: 0;
+        }
+
+        .template-block h3 {
+            margin: 0 0 8px;
+            font-size: 14px;
+        }
+
+        .template-block p {
+            margin: 6px 0;
+            color: var(--muted);
+            line-height: 1.5;
+        }
+
+        code {
+            color: #0f172a;
+            background: #eef2f7;
+            border-radius: 4px;
+            padding: 1px 4px;
+            white-space: nowrap;
+        }
+
+        .section-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            border-bottom: 1px solid var(--line);
+            padding: 12px 14px;
+        }
+
+        h2 {
+            margin: 0;
+            font-size: 16px;
+        }
+
+        .count {
+            color: var(--muted);
+            font-size: 13px;
+        }
+
+        .table-wrap {
+            overflow: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            min-width: 880px;
+        }
+
+        th, td {
+            border-bottom: 1px solid var(--line);
+            padding: 10px 12px;
+            text-align: left;
+            vertical-align: top;
+        }
+
+        th {
+            position: sticky;
+            top: 0;
+            background: #eef2f7;
+            color: #334155;
+            font-size: 13px;
+            font-weight: 700;
+        }
+
+        td {
+            color: #1f2937;
+        }
+
+        .badge {
+            display: inline-block;
+            min-width: 58px;
+            border-radius: 999px;
+            padding: 3px 8px;
+            text-align: center;
+            font-size: 12px;
+            font-weight: 700;
+        }
+
+        .ok {
+            background: #dcfce7;
+            color: var(--green);
+        }
+
+        .bad {
+            background: #fee2e2;
+            color: var(--red);
+        }
+
+        .risk-high {
+            color: var(--red);
+            font-weight: 700;
+        }
+
+        .risk-mid {
+            color: var(--amber);
+            font-weight: 700;
+        }
+
+        .empty {
+            padding: 24px;
+            color: var(--muted);
+            text-align: center;
+        }
+
+        @media (max-width: 720px) {
+            header {
+                padding: 16px;
+            }
+
+            main {
+                width: calc(100vw - 20px);
+                margin-top: 12px;
+            }
+
+            .toolbar {
+                grid-template-columns: 1fr;
+            }
+
+            .template-grid {
+                grid-template-columns: 1fr;
+            }
+
+            button, .download {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+<header>
+    <h1>PipeFlowCheck</h1>
+</header>
+
+<main>
+    <form class="toolbar" id="uploadForm">
+        <div>
+            <label for="fileInput">输入 Excel 文件</label>
+            <input id="fileInput" name="file" type="file" accept=".xlsx" required>
+        </div>
+        <button id="submitButton" type="submit">开始检测</button>
+        <a class="download" href="/api/pipe-flow/template">下载标准模板</a>
+        <a class="download" id="downloadLink" hidden>下载结果 Excel</a>
+    </form>
+
+    <div class="status" id="statusText">请选择包含 Nodes、Edges、Tasks 的 .xlsx 文件。</div>
+
+    <section class="section">
+        <div class="section-head">
+            <h2>输入模板要求</h2>
+            <span class="count">3 张必需 Sheet</span>
+        </div>
+        <div class="template-grid">
+            <div class="template-block">
+                <h3>Nodes</h3>
+                <p>必填列：<code>node_id</code> <code>node_name</code> <code>node_type</code></p>
+                <p>可选列：<code>remark</code></p>
+                <p>节点类型：<code>RAIN_INLET</code> <code>SEWAGE_INLET</code> <code>LIFE_SEWAGE_INLET</code> <code>RAIN_WELL</code> <code>SEWAGE_WELL</code> <code>COMBINED_WELL</code> <code>RAIN_OUTLET</code> <code>RIVER</code> <code>LAKE</code> <code>WWTP</code> <code>NORMAL</code></p>
+            </div>
+            <div class="template-block">
+                <h3>Edges</h3>
+                <p>必填列：<code>from_node_id</code> <code>to_node_id</code> <code>channel_type</code></p>
+                <p>可选列：<code>remark</code></p>
+                <p>通道类型：<code>RAIN</code> <code>SEWAGE</code> <code>COMBINED</code> <code>LIFE_SEWAGE</code> <code>CUSTOM</code></p>
+            </div>
+            <div class="template-block">
+                <h3>Tasks</h3>
+                <p>必填列：<code>task_id</code> <code>start_node_id</code> <code>start_type</code></p>
+                <p>可选列：<code>remark</code></p>
+                <p>入口类型：<code>RAIN</code> <code>SEWAGE</code> <code>LIFE_SEWAGE</code> <code>CUSTOM</code></p>
+            </div>
+        </div>
+    </section>
+
+    <section class="section" id="summarySection">
+        <div class="section-head">
+            <h2>任务汇总</h2>
+            <span class="count" id="summaryCount">0 条</span>
+        </div>
+        <div class="table-wrap" id="summaryTable"></div>
+    </section>
+
+    <section class="section" id="resultSection">
+        <div class="section-head">
+            <h2>路径明细</h2>
+            <span class="count" id="resultCount">0 条</span>
+        </div>
+        <div class="table-wrap" id="resultTable"></div>
+    </section>
+</main>
+
+<script>
+    const form = document.getElementById('uploadForm');
+    const fileInput = document.getElementById('fileInput');
+    const submitButton = document.getElementById('submitButton');
+    const downloadLink = document.getElementById('downloadLink');
+    const statusText = document.getElementById('statusText');
+    const summaryTable = document.getElementById('summaryTable');
+    const resultTable = document.getElementById('resultTable');
+    const summaryCount = document.getElementById('summaryCount');
+    const resultCount = document.getElementById('resultCount');
+
+    const summaryColumns = [
+        ['taskId', '任务编号'],
+        ['startNodeId', '起点编号'],
+        ['startNodeName', '起点名称'],
+        ['startType', '入口类型'],
+        ['status', '状态'],
+        ['pathCount', '路径数'],
+        ['errorCode', '错误编码'],
+        ['errorReason', '错误原因'],
+        ['riskLevel', '风险']
+    ];
+
+    const resultColumns = [
+        ['taskId', '任务编号'],
+        ['startNodeId', '起点编号'],
+        ['startNodeName', '起点名称'],
+        ['startType', '入口类型'],
+        ['status', '状态'],
+        ['endNodeId', '终点编号'],
+        ['endNodeName', '终点名称'],
+        ['path', '路径'],
+        ['errorCode', '错误编码'],
+        ['errorReason', '错误原因'],
+        ['riskLevel', '风险']
+    ];
+
+    form.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const file = fileInput.files[0];
+        if (!file) {
+            setStatus('请选择 .xlsx 文件。', true);
+            return;
+        }
+        if (!file.name.toLowerCase().endsWith('.xlsx')) {
+            setStatus('仅支持 .xlsx 文件。', true);
+            return;
+        }
+
+        submitButton.disabled = true;
+        downloadLink.hidden = true;
+        setStatus('正在检测...');
+        clearTables();
+
+        try {
+            const formData = new FormData();
+            formData.append('file', file);
+
+            const response = await fetch('/api/pipe-flow/check-json', {
+                method: 'POST',
+                body: formData
+            });
+            const payload = await response.json();
+            if (!response.ok) {
+                throw new Error(payload.message || '检测失败');
+            }
+
+            renderTable(summaryTable, summaryColumns, payload.summary || []);
+            renderTable(resultTable, resultColumns, payload.results || []);
+            summaryCount.textContent = `${(payload.summary || []).length} 条`;
+            resultCount.textContent = `${(payload.results || []).length} 条`;
+            await prepareDownload(file);
+            setStatus('检测完成。');
+        } catch (error) {
+            setStatus(error.message, true);
+        } finally {
+            submitButton.disabled = false;
+        }
+    });
+
+    async function prepareDownload(file) {
+        const formData = new FormData();
+        formData.append('file', file);
+        const response = await fetch('/api/pipe-flow/check', {
+            method: 'POST',
+            body: formData
+        });
+        if (!response.ok) {
+            return;
+        }
+        const blob = await response.blob();
+        if (downloadLink.href) {
+            URL.revokeObjectURL(downloadLink.href);
+        }
+        downloadLink.href = URL.createObjectURL(blob);
+        downloadLink.download = 'pipe-flow-check-result.xlsx';
+        downloadLink.hidden = false;
+    }
+
+    function renderTable(container, columns, rows) {
+        if (!rows.length) {
+            container.innerHTML = '<div class="empty">暂无结果</div>';
+            return;
+        }
+        const head = columns.map(([, label]) => `<th>${escapeHtml(label)}</th>`).join('');
+        const body = rows.map(row => `<tr>${columns.map(([key]) => `<td>${formatCell(key, row[key])}</td>`).join('')}</tr>`).join('');
+        container.innerHTML = `<table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`;
+    }
+
+    function formatCell(key, value) {
+        const text = value == null ? '' : String(value);
+        if (key === 'status') {
+            const className = text === '通道正常' ? 'ok' : 'bad';
+            return `<span class="badge ${className}">${escapeHtml(text)}</span>`;
+        }
+        if (key === 'riskLevel') {
+            const className = text === '高' ? 'risk-high' : text === '中' ? 'risk-mid' : '';
+            return `<span class="${className}">${escapeHtml(text)}</span>`;
+        }
+        return escapeHtml(text);
+    }
+
+    function clearTables() {
+        summaryCount.textContent = '0 条';
+        resultCount.textContent = '0 条';
+        summaryTable.innerHTML = '<div class="empty">暂无结果</div>';
+        resultTable.innerHTML = '<div class="empty">暂无结果</div>';
+    }
+
+    function setStatus(message, isError = false) {
+        statusText.textContent = message;
+        statusText.classList.toggle('error', isError);
+    }
+
+    function escapeHtml(value) {
+        return value
+            .replaceAll('&', '&amp;')
+            .replaceAll('<', '&lt;')
+            .replaceAll('>', '&gt;')
+            .replaceAll('"', '&quot;')
+            .replaceAll("'", '&#039;');
+    }
+
+    clearTables();
+</script>
+</body>
+</html>

@@ -1,0 +1,46 @@
+# Maven
+target/
+*.class
+*.jar
+*.war
+*.ear
+
+# IDEA
+.idea/
+*.iml
+*.iws
+*.ipr
+.shelf/
+workspace.xml
+
+# VS Code
+.vscode/
+*.swp
+*.swo
+
+# Claude / artifacts
+.claude/
+.artifacts/
+
+# OS
+.DS_Store
+Thumbs.db
+*.log
+
+# Java
+*.class
+hs_err_pid*
+replay_pid*
+
+# Maven wrapper
+mvnw
+mvnw.cmd
+.mvn/
+
+# Office temp files
+~$*
+
+# Project-specific temp / generated
+examples/*.xlsx
+!examples/*_template.xlsx
+target/

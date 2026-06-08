@@ -1,0 +1,14 @@
+flowchart TD
+    A[开始：上传/读取 Excel 管网图数据] --> B[ExcelReadService：读取 Nodes / Edges / Tasks]
+    B --> C[DataValidateService：字段完整性、节点引用、枚举合法性校验]
+    C --> D[GraphBuildService：构建有向图邻接表]
+    C --> E[RuleConfigService：加载规则配置]
+    D --> F[PipeCheckService：遍历每个检测入口]
+    E --> F
+    F --> G[DFS Path Traversal：遍历所有下游路径]
+    G --> H[RuleEngine：通道合法性、终点合法性、状态迁移]
+    H --> I[ErrorCollector：环路、死路、非法通道、非法终点]
+    I --> J[ResultAggregator：所有下游路径必须合法]
+    J --> K[ExcelWriteService：生成结果 Excel]
+    K --> L[结束：返回检测报告]
+    H -. 继续递归下游 .-> G

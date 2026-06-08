@@ -1,0 +1,24 @@
+digraph G {
+  graph [rankdir=LR, bgcolor="white", pad="0.3", nodesep="0.35", ranksep="0.45"];
+  node [shape=box, style="rounded,filled", fontname="Noto Sans CJK SC", fontsize=11, fillcolor="#E8F3FF", color="#2B6CB0", margin="0.12,0.08"];
+  edge [fontname="Noto Sans CJK SC", fontsize=9, color="#4A5568"];
+
+  A [label="开始\n上传/读取 Excel"];
+  B [label="ExcelReadService\n读取三类数据"];
+  C [label="DataValidateService\n字段/引用/枚举校验"];
+  D [label="GraphBuildService\n构建邻接表"];
+  E [label="RuleConfigService\n加载规则"];
+  F [label="PipeCheckService\n遍历入口"];
+  G1 [label="DFS Traversal\n全路径搜索"];
+  H [label="RuleEngine\n通道/终点判断"];
+  I [label="ErrorCollector\n环路/死路/错排"];
+  J [label="ResultAggregator\n所有路径必须合法"];
+  K [label="ExcelWriteService\n生成报告"];
+  L [label="结束\n返回结果 Excel"];
+
+  A -> B -> C;
+  C -> D -> F;
+  C -> E -> F;
+  F -> G1 -> H -> I -> J -> K -> L;
+  H -> G1 [label="递归下游", style=dashed];
+}

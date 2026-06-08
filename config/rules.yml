@@ -1,0 +1,35 @@
+# PipeFlowCheck 规则配置示例
+# 说明：后续可以从 YAML、JSON、数据库或管理后台读取规则。
+
+startRules:
+  RAIN:
+    name: 雨水
+    allowedChannels: [RAIN, SEWAGE, COMBINED]
+    normalEndTypes: [RIVER, LAKE, RAIN_OUTLET]
+    pollutedEndTypes: [WWTP]
+    pollutedWhenChannels: [SEWAGE, COMBINED]
+
+  SEWAGE:
+    name: 污水
+    allowedChannels: [SEWAGE, COMBINED]
+    normalEndTypes: [WWTP]
+    pollutedEndTypes: [WWTP]
+    pollutedWhenChannels: [SEWAGE, COMBINED]
+
+  LIFE_SEWAGE:
+    name: 生活污水
+    allowedChannels: [LIFE_SEWAGE, SEWAGE, COMBINED]
+    normalEndTypes: [WWTP]
+    pollutedEndTypes: [WWTP]
+    pollutedWhenChannels: [LIFE_SEWAGE, SEWAGE, COMBINED]
+
+terminalTypes:
+  - RIVER
+  - LAKE
+  - RAIN_OUTLET
+  - WWTP
+
+errorPolicy:
+  allDownstreamPathsMustBeValid: true
+  cycleAsError: true
+  deadEndAsError: true
