@@ -33,3 +33,26 @@ errorPolicy:
   allDownstreamPathsMustBeValid: true
   cycleAsError: true
   deadEndAsError: true
+
+# 可视化样式配置（可选，不配置则使用默认值）
+visualization:
+  nodeColors:
+    RAIN_INLET: "#4A90D9"
+    RAIN_WELL: "#6DB3F2"
+    RAIN_OUTLET: "#2E75B6"
+    SEWAGE_INLET: "#333333"
+    SEWAGE_WELL: "#555555"
+    LIFE_SEWAGE_INLET: "#8B4513"
+    COMBINED_WELL: "#808080"
+    WWTP: "#2E8B57"
+    RIVER: "#87CEEB"
+    LAKE: "#87CEEB"
+    NORMAL: "#FFFFFF"
+  errorNodeColor: "#FF6B6B"
+  errorEdgeColor: "#FF0000"
+  errorEdgePenWidth: 3
+  normalEdgeColor: "#888888"
+  terminalShape: "box"
+  normalShape: "ellipse"
+  fontName: "Microsoft YaHei"
+  graphDirection: "LR"

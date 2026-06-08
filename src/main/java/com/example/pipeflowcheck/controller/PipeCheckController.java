@@ -67,14 +67,23 @@ public class PipeCheckController {
         Set<String> errorNodeIds = visualizationService.collectErrorNodeIds(results);
         Set<String> errorEdgeKeys = visualizationService.collectErrorEdgeKeys(results);
         String dotSource = visualizationService.generateDot(data.getNodeMap(), data.getEdges(), errorNodeIds, errorEdgeKeys);
+        String fullDotSource = visualizationService.generateDot(data.getNodeMap(), data.getEdges());
 
         var zipEntries = new java.util.LinkedHashMap<String, byte[]>();
         zipEntries.put("pipe-flow-check-result.xlsx", report);
+        // error-highlighted graph
         zipEntries.put("pipe-network-graph.dot", dotSource.getBytes(StandardCharsets.UTF_8));
-        // try rendering SVG; if it fails, zip still contains xlsx + dot
+        // full network without error highlighting
+        zipEntries.put("pipe-network-full.dot", fullDotSource.getBytes(StandardCharsets.UTF_8));
+        // SVG with error highlighting
         String svgSource = visualizationService.renderSvg(dotSource);
         if (!svgSource.isEmpty()) {
             zipEntries.put("pipe-network-graph.svg", svgSource.getBytes(StandardCharsets.UTF_8));
+        }
+        // full network PNG
+        byte[] pngBytes = visualizationService.renderPng(fullDotSource);
+        if (pngBytes.length > 0) {
+            zipEntries.put("pipe-network-full.png", pngBytes);
         }
         byte[] zip = zipPackagingService.packageZip(zipEntries);
 
