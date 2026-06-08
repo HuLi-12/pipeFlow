@@ -147,9 +147,11 @@ public class VisualizationService {
                     .append("\" [label=\"").append(edge.getChannelType());
             if (isError) {
                 sb.append("\", color=\"").append(c.getErrorEdgeColor())
-                        .append("\", penwidth=").append(c.getErrorEdgePenWidth());
+                        .append("\", penwidth=").append(c.getErrorEdgePenWidth())
+                        .append("];\n");
+            } else {
+                sb.append("\"];\n");
             }
-            sb.append("\"];\n");
         }
 
         sb.append("}\n");

@@ -78,6 +78,28 @@ class PipeCheckControllerTest {
     }
 
     @Test
+    void returnsJsonResultForMultiScenarioWorkbook() throws Exception {
+        MockMvc mockMvc = MockMvcBuilders
+                .standaloneSetup(controller())
+                .setControllerAdvice(new ApiExceptionHandler())
+                .build();
+        MockMultipartFile file = new MockMultipartFile(
+                "file",
+                "multi-scenario.xlsx",
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                SampleWorkbookFactory.multiScenarioWorkbook()
+        );
+
+        MvcResult result = mockMvc.perform(multipart("/api/pipe-flow/check-json").file(file))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        JsonNode root = new ObjectMapper().readTree(result.getResponse().getContentAsByteArray());
+        assertEquals(15, root.get("results").size());
+        assertEquals(12, root.get("summary").size());
+    }
+
+    @Test
     void returnsStandardTemplateWorkbook() throws Exception {
         ResponseEntity<byte[]> response = controller().template();
 

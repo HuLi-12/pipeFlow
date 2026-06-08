@@ -2,6 +2,8 @@ package com.example.pipeflowcheck.service;
 
 import com.example.pipeflowcheck.config.RuleDefinition;
 import com.example.pipeflowcheck.enums.ErrorCode;
+import com.example.pipeflowcheck.enums.NodeType;
+import com.example.pipeflowcheck.enums.StartType;
 import com.example.pipeflowcheck.model.CheckContext;
 import com.example.pipeflowcheck.model.CheckResult;
 import com.example.pipeflowcheck.model.CheckTask;
@@ -14,8 +16,8 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 
 @Service
 @RequiredArgsConstructor
@@ -47,7 +49,25 @@ public class PipeCheckService {
         CheckContext context = new CheckContext();
         context.setTask(task);
         context.setPathCounter(new int[]{0});
+
+        Node startNode = nodeMap.get(task.getStartNodeId());
+        if (startNode != null && !isStartNodeCompatible(task.getStartType(), startNode.getNodeType())) {
+            return List.of(error(context, nodeMap, startNode.getNodeId(), ErrorCode.START_NODE_TYPE_MISMATCH,
+                    "任务 " + task.getTaskId() + " 的 start_type=" + task.getStartType()
+                            + "，但起点节点 " + startNode.getNodeId()
+                            + " 的类型为 " + startNode.getNodeType() + "，不兼容"));
+        }
         return dfs(task.getStartNodeId(), nodeMap, graph, context, rules);
+    }
+
+    private boolean isStartNodeCompatible(StartType startType, NodeType nodeType) {
+        Map<StartType, Set<NodeType>> allowed = Map.of(
+                StartType.RAIN, Set.of(NodeType.RAIN_INLET, NodeType.RAIN_WELL, NodeType.COMBINED_WELL),
+                StartType.SEWAGE, Set.of(NodeType.SEWAGE_INLET, NodeType.SEWAGE_WELL, NodeType.COMBINED_WELL),
+                StartType.LIFE_SEWAGE, Set.of(NodeType.LIFE_SEWAGE_INLET, NodeType.SEWAGE_WELL, NodeType.COMBINED_WELL),
+                StartType.CUSTOM, Set.of(NodeType.values())
+        );
+        return allowed.getOrDefault(startType, Set.of()).contains(nodeType);
     }
 
     private List<CheckResult> dfs(String currentNodeId,

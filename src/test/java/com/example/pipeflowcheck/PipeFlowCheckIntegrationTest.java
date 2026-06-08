@@ -20,6 +20,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -83,15 +84,30 @@ class PipeFlowCheckIntegrationTest {
     }
 
     @Test
-    void rejectsSampleWorkbookWithMissingStartNode() {
+    void readsSampleWorkbookAndReportsNodeNotFoundForMissingStart() throws Exception {
         ExcelReadService excelReadService = new ExcelReadService();
+        GraphBuildService graphBuildService = new GraphBuildService();
+        PipeCheckService pipeCheckService = new PipeCheckService(new RuleEngine(), new RuleConfigService());
 
-        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> {
-            try (var inputStream = Files.newInputStream(Path.of("examples", "pipeflowcheck_sample_12_nodes.xlsx"))) {
-                excelReadService.read(inputStream);
-            }
-        });
-        assertTrue(exception.getMessage().contains("不存在"));
+        try (var inputStream = Files.newInputStream(Path.of("examples", "pipeflowcheck_sample_12_nodes.xlsx"))) {
+            PipeNetworkData data = excelReadService.read(inputStream);
+            assertEquals(12, data.getNodeMap().size());
+            assertEquals(12, data.getEdges().size());
+            assertEquals(6, data.getTasks().size());
+
+            List<CheckResult> results = pipeCheckService.checkAll(
+                    data.getNodeMap(),
+                    graphBuildService.buildGraph(data.getEdges()),
+                    data.getTasks()
+            );
+
+            // T006 has start_node_id=N999 which doesn't exist → should get NODE_NOT_FOUND
+            List<CheckResult> t006Results = results.stream()
+                    .filter(r -> "T006".equals(r.getTaskId()))
+                    .toList();
+            assertEquals(1, t006Results.size());
+            assertEquals(ErrorCode.NODE_NOT_FOUND, t006Results.get(0).getErrorCode());
+        }
     }
 
     @Test
@@ -112,6 +128,75 @@ class PipeFlowCheckIntegrationTest {
                 () -> excelReadService.read(new ByteArrayInputStream(SampleWorkbookFactory.workbookWithMissingEdgeTarget())));
 
         assertTrue(exception.getMessage().contains("边引用节点不存在"));
+    }
+
+    @Test
+    void reportsStartNodeTypeMismatchWithoutAbortingWholeFile() throws Exception {
+        ExcelReadService excelReadService = new ExcelReadService();
+        GraphBuildService graphBuildService = new GraphBuildService();
+        PipeCheckService pipeCheckService = new PipeCheckService(new RuleEngine(), new RuleConfigService());
+
+        PipeNetworkData data = excelReadService.read(new ByteArrayInputStream(SampleWorkbookFactory.workbookWithStartTypeMismatch()));
+        List<CheckResult> results = pipeCheckService.checkAll(
+                data.getNodeMap(),
+                graphBuildService.buildGraph(data.getEdges()),
+                data.getTasks()
+        );
+
+        List<CheckResult> t002Results = results.stream()
+                .filter(result -> "T002".equals(result.getTaskId()))
+                .toList();
+
+        assertEquals(1, t002Results.size());
+        assertEquals(ErrorCode.START_NODE_TYPE_MISMATCH, t002Results.get(0).getErrorCode());
+    }
+
+    @Test
+    void multiScenarioWorkbookCoversRuleAndDataEdgeCases() throws Exception {
+        ExcelReadService excelReadService = new ExcelReadService();
+        GraphBuildService graphBuildService = new GraphBuildService();
+        PipeCheckService pipeCheckService = new PipeCheckService(new RuleEngine(), new RuleConfigService());
+        ResultSummaryService resultSummaryService = new ResultSummaryService();
+
+        PipeNetworkData data = excelReadService.read(new ByteArrayInputStream(SampleWorkbookFactory.multiScenarioWorkbook()));
+
+        assertEquals(23, data.getNodeMap().size());
+        assertEquals(17, data.getEdges().size());
+        assertEquals(12, data.getTasks().size());
+
+        List<CheckResult> results = pipeCheckService.checkAll(
+                data.getNodeMap(),
+                graphBuildService.buildGraph(data.getEdges()),
+                data.getTasks()
+        );
+
+        assertEquals(15, results.size());
+        Set<ErrorCode> errorCodes = results.stream()
+                .map(CheckResult::getErrorCode)
+                .filter(code -> code != null)
+                .collect(Collectors.toSet());
+        assertTrue(errorCodes.contains(ErrorCode.INVALID_END));
+        assertTrue(errorCodes.contains(ErrorCode.CHANNEL_NOT_ALLOWED));
+        assertTrue(errorCodes.contains(ErrorCode.DEAD_END));
+        assertTrue(errorCodes.contains(ErrorCode.CYCLE_FOUND));
+        assertTrue(errorCodes.contains(ErrorCode.NODE_NOT_FOUND));
+        assertTrue(errorCodes.contains(ErrorCode.START_NODE_TYPE_MISMATCH));
+        assertTrue(errorCodes.contains(ErrorCode.TERMINAL_HAS_DOWNSTREAM));
+
+        assertEquals(12, resultSummaryService.summarize(results).size());
+    }
+
+    @Test
+    void readsCheckedInMultiScenarioWorkbook() throws Exception {
+        ExcelReadService excelReadService = new ExcelReadService();
+
+        try (var inputStream = Files.newInputStream(Path.of("examples", "pipeflowcheck_multi_scenario.xlsx"))) {
+            PipeNetworkData data = excelReadService.read(inputStream);
+
+            assertEquals(23, data.getNodeMap().size());
+            assertEquals(17, data.getEdges().size());
+            assertEquals(12, data.getTasks().size());
+        }
     }
 
     private boolean hasErrorReason(Sheet resultSheet, String taskId, String errorCode) {

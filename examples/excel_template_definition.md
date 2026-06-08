@@ -6,6 +6,10 @@
 
 示例输出：`examples/pipeflowcheck_sample_12_nodes_result.xlsx`，由当前 Java 服务读取上述输入后生成，包含路径明细 `Result` 和任务汇总 `Summary` 两张表。
 
+多场景测试输入：`examples/pipeflowcheck_multi_scenario.xlsx`，包含 23 个节点、17 条通道、12 个检测任务，覆盖多分支正常、多分支错误、非法通道、非法终点、断头、环路、起点缺失、起点类型不匹配、终点节点仍有下游、生活污水正常路径等情况。
+
+多场景测试输出：`examples/pipeflowcheck_multi_scenario_result.xlsx`，由当前 Java 服务读取多场景输入后生成。
+
 ## Sheet: Nodes
 | node_id | node_name | node_type | remark |
 |---|---|---|---|
