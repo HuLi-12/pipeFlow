@@ -1,0 +1,16 @@
+package com.example.pipeflowcheck.enums;
+
+public enum ErrorCode {
+    NODE_NOT_FOUND,
+    CHANNEL_NOT_ALLOWED,
+    INVALID_END,
+    DEAD_END,
+    CYCLE_FOUND,
+    PATH_TOO_DEEP,
+    TERMINAL_HAS_DOWNSTREAM,
+    TOO_MANY_PATHS,
+    START_NODE_TYPE_MISMATCH,
+    EXCEL_FORMAT_ERROR,
+    MISSING_REQUIRED_FIELD,
+    MULTI_PATH_ERROR
+}
