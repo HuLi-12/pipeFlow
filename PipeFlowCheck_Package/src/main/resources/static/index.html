@@ -1,779 +1,636 @@
 <!doctype html>
 <html lang="zh-CN">
 <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>PipeFlowCheck</title>
-    <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js"></script>
-    <style>
-        :root{color-scheme:light;--bg:#f6f8fb;--panel:#fff;--text:#1f2937;--muted:#64748b;--line:#d7dee8;--blue:#2563eb;--blue-dark:#1d4ed8;--red:#b91c1c;--green:#047857;--amber:#b45309;}
-        *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--text);font-family:Arial,"Microsoft YaHei",sans-serif;font-size:14px} header{background:var(--panel);border-bottom:1px solid var(--line);padding:18px 24px} h1{margin:0;font-size:22px;font-weight:700} main{width:min(1380px,calc(100vw - 32px));margin:20px auto 40px}.toolbar{display:grid;grid-template-columns:minmax(260px,1fr) auto auto auto;gap:12px;align-items:end;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px} label{display:block;color:var(--muted);font-size:13px;margin-bottom:6px} input[type=file]{width:100%;border:1px solid var(--line);border-radius:6px;background:#fff;padding:9px}button,.download{height:38px;border:0;border-radius:6px;padding:0 14px;background:var(--blue);color:#fff;cursor:pointer;font-weight:600;text-decoration:none;display:inline-flex;align-items:center;justify-content:center;white-space:nowrap}button:hover,.download:hover{background:var(--blue-dark)}button:disabled{background:#94a3b8;cursor:not-allowed}.download[hidden]{display:none}.status{margin:12px 0;min-height:22px;color:var(--muted)}.status.error{color:var(--red)}.section{margin-top:16px;background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden}.section-head{display:flex;align-items:center;justify-content:space-between;gap:12px;border-bottom:1px solid var(--line);padding:12px 14px}h2{margin:0;font-size:16px}.count{color:var(--muted);font-size:13px}
-        /* collapsible sections */
-        details.section summary::-webkit-details-marker, details.section summary::marker{display:none;content:''}details.section summary{list-style:none;cursor:pointer}details.section summary .section-head{border-bottom:0}details.section[open]>summary .section-head{border-bottom:1px solid var(--line)}details.section .collapse-indicator{font-size:16px;color:var(--muted);transition:transform .2s}details.section[open] .collapse-indicator{transform:rotate(90deg)}
-        .page-tabs{display:flex;gap:8px;margin-bottom:14px}.page-tabs button{background:#fff;color:#334155;border:1px solid var(--line)}.page-tabs button.active{background:var(--blue);color:#fff;border-color:var(--blue)}.page-hidden{display:none!important}.rule-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;padding:14px}.rule-card{border:1px solid var(--line);border-radius:6px;padding:12px;background:#fff}.rule-card h3{margin:0 0 8px;font-size:14px}.rule-card p{margin:6px 0;color:var(--muted);line-height:1.5}.rule-actions{display:flex;gap:8px;flex-wrap:wrap;padding:14px;border-bottom:1px solid var(--line)}.rule-options{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px 12px;margin:8px 0 12px}.rule-options label{margin:0;color:#334155;font-size:12px}.rule-policy{padding:0 14px 14px}.rule-policy label{display:inline-flex;align-items:center;gap:6px;margin-right:16px;color:#334155}.graph-toolbar{min-height:48px;height:auto;gap:10px;padding:8px 14px}.graph-actions{flex-wrap:wrap}.graph-actions button.active{background:#eff6ff;color:#1d4ed8;border-color:#93c5fd}
-        .template-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;padding:14px}.template-block{border:1px solid var(--line);border-radius:6px;padding:12px;min-width:0}.template-block h3{margin:0 0 8px;font-size:14px}.template-block p{margin:6px 0;color:var(--muted);line-height:1.5}code{color:#0f172a;background:#eef2f7;border-radius:4px;padding:1px 4px;white-space:nowrap}.table-wrap{overflow:auto}table{width:100%;border-collapse:collapse;min-width:980px}th,td{border-bottom:1px solid var(--line);padding:10px 12px;text-align:left;vertical-align:top}th{position:sticky;top:0;background:#eef2f7;color:#334155;font-size:13px;font-weight:700}td{color:#1f2937}.badge{display:inline-block;min-width:58px;border-radius:999px;padding:3px 8px;text-align:center;font-size:12px;font-weight:700}.ok{background:#dcfce7;color:var(--green)}.bad{background:#fee2e2;color:var(--red)}.risk-high{color:var(--red);font-weight:700}.risk-mid{color:var(--amber);font-weight:700}.empty{padding:24px;color:var(--muted);text-align:center}.graph-layout{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:14px;padding:14px}.graph-panel{border:1px solid var(--line);border-radius:10px;overflow:hidden;background:#fff}.graph-toolbar{height:48px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;padding:0 14px}.graph-toolbar .hint{font-size:12px;color:var(--muted)}.graph-actions{display:flex;gap:8px}.graph-actions button{height:32px;background:#fff;color:#334155;border:1px solid #cbd5e1}.graph-actions button:hover{background:#f8fafc}#graph{height:620px;width:100%}.side{border:1px solid var(--line);border-radius:10px;background:#fff;padding:14px;overflow-y:auto;max-height:670px}.side h3{font-size:15px;margin:0 0 10px}.kv{font-size:13px;margin:8px 0;line-height:1.6;word-break:break-all}.kv strong{color:#111827}.error-box{background:#fff1f2;border:1px solid #fecdd3;border-radius:10px;padding:10px;margin-bottom:10px;font-size:13px;line-height:1.7}.legend{display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:13px}.legend-item{display:flex;align-items:center;gap:6px}.dot{width:13px;height:13px;border-radius:999px;border:1px solid #475569;flex:0 0 auto}.side-section{border-top:1px solid var(--line);padding-top:12px;margin-top:12px}.status-ok{color:#15803d;font-weight:700}.status-error{color:#dc2626;font-weight:700}@media(max-width:900px){header{padding:16px}main{width:calc(100vw - 20px);margin-top:12px}.toolbar{grid-template-columns:1fr}.template-grid,.graph-layout{grid-template-columns:1fr}button,.download{width:100%}#graph{height:580px}}
-        .error-box[data-error-task]{cursor:pointer}.error-box[data-error-task]:hover,.error-box.active{background:#ffe4e6;border-color:#dc2626}.error-action{margin-top:6px;color:#1d4ed8;font-weight:700}
-        .overview-controls{display:flex;align-items:center;gap:8px;padding:8px 14px;border-bottom:1px solid var(--line);background:#f8fafc}.overview-controls[hidden]{display:none}.overview-controls label{margin:0}.overview-controls select{height:32px;border:1px solid #cbd5e1;border-radius:6px;background:#fff;padding:0 8px;color:#334155}.overview-controls button{width:32px;height:32px;padding:0;background:#fff;color:#334155;border:1px solid #cbd5e1}.overview-controls button:disabled{background:#f1f5f9;color:#94a3b8}.overview-page{min-width:88px;text-align:center;color:var(--muted);font-size:12px}
-    </style>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PipeFlowCheck</title>
+<script src="https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js"></script>
+<script src="https://unpkg.com/@antv/g6@4.8.24/dist/g6.min.js"></script>
+<script src="https://unpkg.com/elkjs@0.8.2/lib/elk.bundled.min.js"></script>
+<style>
+:root{color-scheme:light;--bg:#f6f8fb;--panel:#fff;--text:#1f2937;--muted:#64748b;--line:#d7dee8;--blue:#2563eb;--blue-dark:#1d4ed8;--red:#b91c1c;--green:#047857;--amber:#b45309;}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font-family:Arial,"Microsoft YaHei",sans-serif;font-size:14px}
+header{background:var(--panel);border-bottom:1px solid var(--line);padding:18px 24px}h1{margin:0;font-size:22px;font-weight:700}
+main{width:min(1380px,calc(100vw - 32px));margin:20px auto 40px}
+.toolbar{display:grid;grid-template-columns:minmax(260px,1fr) auto auto auto;gap:12px;align-items:end;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px}
+label{display:block;color:var(--muted);font-size:13px;margin-bottom:6px}
+input[type=file]{width:100%;border:1px solid var(--line);border-radius:6px;background:#fff;padding:9px}
+button,.download{height:38px;border:0;border-radius:6px;padding:0 14px;background:var(--blue);color:#fff;cursor:pointer;font-weight:600;text-decoration:none;display:inline-flex;align-items:center;justify-content:center;white-space:nowrap}
+button:hover,.download:hover{background:var(--blue-dark)}button:disabled{background:#94a3b8;cursor:not-allowed}.download[hidden]{display:none}
+.status{margin:12px 0;min-height:22px;color:var(--muted)}.status.error{color:var(--red)}
+.section{margin-top:16px;background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.section-head{display:flex;align-items:center;justify-content:space-between;gap:12px;border-bottom:1px solid var(--line);padding:12px 14px}
+h2{margin:0;font-size:16px}.count{color:var(--muted);font-size:13px}
+details.section summary::-webkit-details-marker,details.section summary::marker{display:none}details.section summary{list-style:none;cursor:pointer}details.section summary .section-head{border-bottom:0}details.section[open]>summary .section-head{border-bottom:1px solid var(--line)}details.section .collapse-indicator{font-size:16px;color:var(--muted);transition:transform .2s}details.section[open] .collapse-indicator{transform:rotate(90deg)}
+.page-tabs{display:flex;gap:8px;margin-bottom:14px}.page-tabs button{background:#fff;color:#334155;border:1px solid var(--line)}.page-tabs button.active{background:var(--blue);color:#fff;border-color:var(--blue)}.page-hidden{display:none!important}
+.rule-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;padding:14px}.rule-card{border:1px solid var(--line);border-radius:6px;padding:12px;background:#fff}.rule-card h3{margin:0 0 8px;font-size:14px}.rule-card p{margin:6px 0;color:var(--muted);line-height:1.5}
+.rule-actions{display:flex;gap:8px;flex-wrap:wrap;padding:14px;border-bottom:1px solid var(--line)}.rule-options{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px 12px;margin:8px 0 12px}.rule-options label{margin:0;color:#334155;font-size:12px}.rule-policy{padding:0 14px 14px}.rule-policy label{display:inline-flex;align-items:center;gap:6px;margin-right:16px;color:#334155}
+.graph-toolbar{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 14px;border-bottom:1px solid var(--line);flex-wrap:wrap;min-height:48px;background:#f8fafc}
+.graph-actions{display:flex;gap:8px;flex-wrap:wrap}.graph-actions button{height:32px;background:#fff;color:#334155;border:1px solid #cbd5e1;font-size:13px}.graph-actions button:hover{background:#f8fafc}.graph-actions button.active{background:#eff6ff;color:#1d4ed8;border-color:#93c5fd}
+#graph-container{height:620px;width:100%;background:#fff}
+.graph-layout{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:14px;padding:14px}.graph-panel{border:1px solid var(--line);border-radius:10px;overflow:hidden;background:#fff}.side{border:1px solid var(--line);border-radius:10px;background:#fff;padding:14px;overflow-y:auto;max-height:670px}.side h3{font-size:15px;margin:0 0 10px}.kv{font-size:13px;margin:8px 0;line-height:1.6;word-break:break-all}.kv strong{color:#111827}.error-box{background:#fff1f2;border:1px solid #fecdd3;border-radius:10px;padding:10px;margin-bottom:10px;font-size:13px;line-height:1.7;cursor:pointer}.error-box:hover,.error-box.active{background:#ffe4e6;border-color:#dc2626}.legend{display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:13px}.legend-item{display:flex;align-items:center;gap:6px}.dot{width:13px;height:13px;border-radius:999px;border:1px solid #475569;flex:0 0 auto}.side-section{border-top:1px solid var(--line);padding-top:12px;margin-top:12px}.status-ok{color:#15803d;font-weight:700}.status-error{color:#dc2626;font-weight:700}
+.table-wrap{overflow:auto}table{width:100%;border-collapse:collapse;min-width:980px}th,td{border-bottom:1px solid var(--line);padding:10px 12px;text-align:left;vertical-align:top}th{position:sticky;top:0;background:#eef2f7;color:#334155;font-size:13px;font-weight:700}td{color:#1f2937}
+.badge{display:inline-block;min-width:58px;border-radius:999px;padding:3px 8px;text-align:center;font-size:12px;font-weight:700}.ok{background:#dcfce7;color:var(--green)}.bad{background:#fee2e2;color:var(--red)}.risk-high{color:var(--red);font-weight:700}.risk-mid{color:var(--amber);font-weight:700}.empty{padding:24px;color:var(--muted);text-align:center}
+.graph-settings{display:flex;align-items:center;gap:10px}.graph-settings select{height:32px;border:1px solid #cbd5e1;border-radius:6px;background:#fff;padding:0 8px;color:#334155;font-size:13px}.hint{font-size:12px;color:var(--muted)}
+@media(max-width:900px){main{width:calc(100vw - 20px)}.toolbar{grid-template-columns:1fr}.graph-layout{grid-template-columns:1fr}#graph-container{height:480px}.side{max-height:none}}
+</style>
 </head>
 <body>
 <header><h1>PipeFlowCheck</h1></header>
 <main>
-    <nav class="page-tabs">
-        <button type="button" class="active" data-page-tab="check" onclick="switchPage('check')">Excel 检测</button>
-        <button type="button" data-page-tab="visual" onclick="switchPage('visual')">可视化分析</button>
-    </nav>
+<nav class="page-tabs">
+<button type="button" class="active" data-page-tab="check" onclick="switchPage('check')">Excel 检测</button>
+<button type="button" data-page-tab="visual" onclick="switchPage('visual')">可视化分析</button>
+</nav>
 
-    <form class="toolbar" id="uploadForm" data-page="check">
-        <div><label for="fileInput">输入 Excel 文件</label><input id="fileInput" name="file" type="file" accept=".xlsx" required></div>
-        <button id="submitButton" type="submit">开始检测</button>
-        <a class="download" href="/api/pipe-flow/template">下载标准模板</a>
-        <a class="download" id="downloadLink" hidden>下载结果 Excel</a>
-        <a class="download" id="downloadZipLink" hidden>下载结果 ZIP</a>
-    </form>
-    <div class="status" id="statusText" data-page="check">请选择包含 Nodes、Edges、Tasks 的 .xlsx 文件。</div>
+<form class="toolbar" id="uploadForm" data-page="check">
+<div><label for="fileInput">输入 Excel 文件</label><input id="fileInput" name="file" type="file" accept=".xlsx" required></div>
+<button id="submitButton" type="submit">开始检测</button>
+<a class="download" href="/api/pipe-flow/template">下载标准模板</a>
+<a class="download" id="downloadLink" hidden>下载结果 Excel</a>
+<a class="download" id="downloadZipLink" hidden>下载结果 ZIP</a>
+</form>
+<div class="status" id="statusText" data-page="check">请选择包含 Nodes、Edges、Tasks 的 .xlsx 文件。</div>
 
-    <details class="section" data-page="check">
-        <summary><div class="section-head"><h2>输入模板要求</h2><span class="count">3 张必需 Sheet</span><span class="collapse-indicator">&#x203A;</span></div></summary>
-        <div class="template-grid">
-            <div class="template-block"><h3>Nodes</h3><p>必填列：<code>node_id</code> <code>node_name</code> <code>node_type</code></p><p>可选列：<code>remark</code></p><p>节点类型：<code>RAIN_INLET</code> <code>SEWAGE_INLET</code> <code>LIFE_SEWAGE_INLET</code> <code>RAIN_WELL</code> <code>SEWAGE_WELL</code> <code>COMBINED_WELL</code> <code>RAIN_OUTLET</code> <code>RIVER</code> <code>LAKE</code> <code>WWTP</code> <code>NORMAL</code></p></div>
-            <div class="template-block"><h3>Edges</h3><p>必填列：<code>from_node_id</code> <code>to_node_id</code> <code>channel_type</code></p><p>可选列：<code>remark</code></p><p>通道类型：<code>RAIN</code> <code>SEWAGE</code> <code>COMBINED</code> <code>LIFE_SEWAGE</code> <code>CUSTOM</code></p></div>
-            <div class="template-block"><h3>Tasks</h3><p>必填列：<code>task_id</code> <code>start_node_id</code> <code>start_type</code></p><p>可选列：<code>remark</code></p><p>入口类型：<code>RAIN</code> <code>SEWAGE</code> <code>LIFE_SEWAGE</code> <code>CUSTOM</code></p></div>
-        </div>
-    </details>
+<details class="section" data-page="check">
+<summary><div class="section-head"><h2>输入模板要求</h2><span class="count">3 张必需 Sheet</span><span class="collapse-indicator">&#x203A;</span></div></summary>
+<div class="template-grid" style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;padding:14px">
+<div class="template-block"><h3>Nodes</h3><p>必填列：<code>node_id</code> <code>node_name</code> <code>node_type</code></p><p>可选列：<code>remark</code></p></div>
+<div class="template-block"><h3>Edges</h3><p>必填列：<code>from_node_id</code> <code>to_node_id</code> <code>channel_type</code></p><p>可选列：<code>remark</code></p></div>
+<div class="template-block"><h3>Tasks</h3><p>必填列：<code>task_id</code> <code>start_node_id</code> <code>start_type</code></p><p>可选列：<code>remark</code></p></div>
+</div>
+</details>
 
-    <section class="section page-hidden" id="graphSection" data-page="visual">
-        <div class="section-head"><h2>管网图可视化</h2><span class="count" id="graphCount">未加载</span></div>
-        <div class="graph-layout">
-            <div class="graph-panel">
-                <div class="graph-toolbar"><span class="hint">默认展示概览图；全量节点需要手动切换，避免节点扎堆。</span><div class="graph-actions"><button type="button" class="active" data-graph-layer="overview" onclick="setGraphLayer('overview')">概览图</button><button type="button" data-graph-layer="full" onclick="setGraphLayer('full')">全量节点</button><button type="button" data-graph-layer="errorNodes" onclick="setGraphLayer('errorNodes')">错误节点</button><button type="button" data-graph-layer="errorPath" onclick="setGraphLayer('errorPath')">错误节点 + 路径</button><button type="button" onclick="resetGraph()">重置图</button></div></div>
-                <div class="overview-controls" id="overviewControls"><label for="overviewTypeFilter">入口类型</label><select id="overviewTypeFilter" onchange="setOverviewType(this.value)"><option value="ALL">全部</option><option value="RAIN">雨水</option><option value="SEWAGE">污水</option><option value="LIFE_SEWAGE">生活污水</option><option value="CUSTOM">其他</option></select><button type="button" id="overviewPrev" title="上一页" onclick="changeOverviewPage(-1)">&#8592;</button><span class="overview-page" id="overviewPageText">第 1 / 1 页</span><button type="button" id="overviewNext" title="下一页" onclick="changeOverviewPage(1)">&#8594;</button><span class="hint">每页 4 个入口，每个入口最多 4 条代表路径</span></div>
-                <div id="graph"></div>
-            </div>
-            <div class="side">
-                <h3>节点 / 链路详情</h3><div id="graphDetail">上传 Excel 并检测后展示图。</div>
-                <div class="side-section"><h3>错误链路</h3><div id="errorList">暂无数据。</div></div>
-                <div class="side-section"><h3>节点图例</h3><div class="legend" id="legend"></div></div>
-            </div>
-        </div>
-    </section>
+<section class="section page-hidden" id="graphSection" data-page="visual">
+<div class="section-head"><h2>管网图图谱工作台</h2><span class="count" id="graphCount">未加载</span></div>
+<div class="graph-layout">
+<div class="graph-panel">
+<div class="graph-toolbar">
+<div class="graph-actions">
+<button type="button" class="active" data-view="global" onclick="switchView('global')">全量拓扑</button>
+<button type="button" data-view="error" onclick="switchView('error')">错误子图</button>
+<button type="button" data-view="task" onclick="switchView('task')">任务子图</button>
+<button type="button" data-view="path" onclick="switchView('path')">路径上下文</button>
+<button type="button" onclick="resetGraphView()">重置视图</button>
+</div>
+<div class="graph-settings" id="viewSettings">
+<select id="taskSelector" style="display:none" onchange="onTaskSelect(this.value)"><option value="">选择任务...</option></select>
+<select id="pathSelector" style="display:none" onchange="onPathSelect(this.value)"><option value="">选择路径...</option></select>
+</div>
+</div>
+<div id="graph-container"></div>
+</div>
+<div class="side">
+<h3>节点 / 链路详情</h3><div id="graphDetail">上传 Excel 并检测后展示图。</div>
+<div class="side-section"><h3>错误链路</h3><div id="errorList">暂无数据。</div></div>
+<div class="side-section"><h3>节点图例</h3><div class="legend" id="legend"></div></div>
+</div>
+</div>
+</section>
 
-    <section class="section page-hidden" data-page="rules" hidden>
-        <div class="section-head"><h2>规则配置</h2><span class="count">默认规则 / 自定义规则</span></div>
-        <div class="rule-actions">
-            <button type="button" onclick="loadRules()">加载当前规则</button>
-            <button type="button" onclick="saveRules()">保存规则</button>
-            <button type="button" onclick="resetRules()">恢复默认规则</button>
-        </div>
-        <div class="rule-policy" id="rulePolicy"></div>
-        <div class="rule-grid" id="ruleEditor">
-            <div class="empty">点击“加载当前规则”开始编辑。</div>
-        </div>
-    </section>
+<section class="section page-hidden" data-page="rules" hidden>
+<div class="section-head"><h2>规则配置</h2><span class="count">默认规则 / 自定义规则</span></div>
+<div class="rule-actions">
+<button type="button" onclick="loadRules()">加载当前规则</button>
+<button type="button" onclick="saveRules()">保存规则</button>
+<button type="button" onclick="resetRules()">恢复默认规则</button>
+</div>
+<div class="rule-policy" id="rulePolicy"></div>
+<div class="rule-grid" id="ruleEditor"><div class="empty">点击"加载当前规则"开始编辑。</div></div>
+</section>
 
-    <details class="section" id="summarySection" data-page="check">
-        <summary><div class="section-head"><h2>任务汇总</h2><span class="count" id="summaryCount">0 条</span><span class="collapse-indicator">&#x203A;</span></div></summary>
-        <div class="table-wrap" id="summaryTable"></div>
-    </details>
-    <details class="section" id="resultSection" data-page="check">
-        <summary><div class="section-head"><h2>路径明细</h2><span class="count" id="resultCount">0 条</span><span class="collapse-indicator">&#x203A;</span></div></summary>
-        <div class="table-wrap" id="resultTable"></div>
-    </details>
+<details class="section" id="summarySection" data-page="check">
+<summary><div class="section-head"><h2>任务汇总</h2><span class="count" id="summaryCount">0 条</span><span class="collapse-indicator">&#x203A;</span></div></summary>
+<div class="table-wrap" id="summaryTable"></div>
+</details>
+<details class="section" id="resultSection" data-page="check">
+<summary><div class="section-head"><h2>路径明细</h2><span class="count" id="resultCount">0 条</span><span class="collapse-indicator">&#x203A;</span></div></summary>
+<div class="table-wrap" id="resultTable"></div>
+</details>
 </main>
 <script>
+/* ============================================================
+   Constants & State
+   ============================================================ */
+const NODE_COLORS = {
+  RAIN_INLET:'#FACC15', RAIN_WELL:'#FEF08A', SEWAGE_INLET:'#6B7280',
+  SEWAGE_WELL:'#9CA3AF', COMBINED_WELL:'#A855F7', WWTP:'#22C55E',
+  RIVER:'#38BDF8', LAKE:'#7DD3FC', RAIN_OUTLET:'#0EA5E9',
+  LIFE_SEWAGE_INLET:'#92400E', NORMAL:'#E5E7EB'
+};
+const NODE_TYPE_NAMES = {
+  RAIN_INLET:'雨水口', RAIN_WELL:'雨水井', SEWAGE_INLET:'污水口',
+  SEWAGE_WELL:'污水井', COMBINED_WELL:'合流井', WWTP:'污水处理厂',
+  RIVER:'河流', LAKE:'湖泊', RAIN_OUTLET:'雨水排口',
+  LIFE_SEWAGE_INLET:'生活污水口', NORMAL:'普通节点'
+};
+function channelColor(t){return t==='RAIN'?'#0EA5E9':t==='SEWAGE'?'#64748B':t==='COMBINED'?'#8B5CF6':t==='LIFE_SEWAGE'?'#92400E':'#94A3B8'}
+
+let graphData = { nodes:[], edges:[], paths:[], views:{ global:{nodeIds:[],edgeIds:[]}, error:{nodeIds:[],edgeIds:[]}, task:{}, path:{} }, errors:[] };
+let allResults = [];
+let currentView = 'global';
+let currentTaskId = null;
+let currentPathId = null;
+let g6Graph = null;
+let elkInstance = null;
+
+/* ============================================================
+   ELK Layout
+   ============================================================ */
+function elkLayoutOptions(nodeCount) {
+  let sn = 80, lg = 180, cg = 150;
+  if (nodeCount <= 30) { sn = 100; lg = 220; cg = 180; }
+  else if (nodeCount <= 100) { sn = 80; lg = 180; cg = 150; }
+  else { sn = 60; lg = 150; cg = 120; }
+  return {
+    'elk.algorithm': 'layered',
+    'elk.direction': 'RIGHT',
+    'elk.edgeRouting': 'POLYLINE',
+    'elk.spacing.nodeNode': String(sn),
+    'elk.spacing.edgeNode': '50',
+    'elk.spacing.edgeEdge': '30',
+    'elk.spacing.componentComponent': String(cg),
+    'elk.layered.spacing.nodeNodeBetweenLayers': String(lg),
+    'elk.layered.nodePlacement.strategy': 'NETWORK_SIMPLEX',
+    'elk.layered.crossingMinimization.strategy': 'LAYER_SWEEP',
+    'elk.layered.mergeEdges': 'true',
+    'elk.layered.mergeHierarchyEdges': 'true',
+    'elk.partitioning.activate': 'false'
+  };
+}
+
+async function runElkLayout(nodes, edges) {
+  if (!elkInstance) {
+    try { elkInstance = new ELK(); } catch(e) {
+      console.warn('ELK not available, using fallback', e);
+      return null;
+    }
+  }
+  if (!nodes || nodes.length === 0) return null;
+  const nodeMap = {};
+  nodes.forEach(n => { nodeMap[n.id] = n; });
+  const elkChildren = nodes.map(n => ({
+    id: n.id,
+    width: n.width || 140,
+    height: n.height || 52
+  }));
+  const elkEdges = edges.map(e => ({
+    id: e.id,
+    sources: [e.from],
+    targets: [e.to]
+  }));
+  const elkGraph = {
+    id: 'root',
+    layoutOptions: elkLayoutOptions(nodes.length),
+    children: elkChildren,
+    edges: elkEdges
+  };
+  try {
+    const result = await elkInstance.layout(elkGraph);
+    if (!result || !result.children) return null;
+    const positions = {};
+    result.children.forEach(child => {
+      if (child.x !== undefined && child.y !== undefined) {
+        positions[child.id] = { x: child.x, y: child.y };
+      }
+    });
+    // Center positions around origin
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    Object.values(positions).forEach(p => {
+      if (p.x < minX) minX = p.x; if (p.x > maxX) maxX = p.x;
+      if (p.y < minY) minY = p.y; if (p.y > maxY) maxY = p.y;
+    });
+    const cx = (minX + maxX) / 2, cy = (minY + maxY) / 2;
+    Object.keys(positions).forEach(id => {
+      positions[id].x -= cx;
+      positions[id].y -= cy;
+    });
+    return positions;
+  } catch (e) {
+    console.warn('ELK layout failed', e);
+    return null;
+  }
+}
+
+/* ============================================================
+   G6 Graph Rendering
+   ============================================================ */
+let positionsCache = null;
+
+async function renderGraph() {
+  const container = document.getElementById('graph-container');
+  const viewData = getViewData();
+  if (!viewData || !viewData.nodes || viewData.nodes.length === 0) {
+    if (g6Graph) g6Graph.destroy();
+    g6Graph = null;
+    container.innerHTML = '<div class="empty">暂无数据</div>';
+    updateGraphCount(viewData);
+    return;
+  }
+
+  // Compute layout
+  positionsCache = await runElkLayout(viewData.nodes, viewData.edges);
+
+  // Build G6 nodes with positions
+  const g6Nodes = viewData.nodes.map(n => {
+    const pos = positionsCache ? positionsCache[n.id] : { x: 0, y: 0 };
+    const isError = n.isError || false;
+    const isEntry = n.isEntry || false;
+    const isTerminal = n.isTerminal || false;
+    const w = n.width || 140;
+    const h = n.height || 52;
+    return {
+      id: n.id,
+      x: pos.x,
+      y: pos.y,
+      width: w,
+      height: h,
+      label: currentView === 'global' && !isError && !isEntry && !isTerminal ? '' : (n.name + '\n' + n.id),
+      style: {
+        fill: NODE_COLORS[n.type] || '#E5E7EB',
+        stroke: isError ? '#DC2626' : '#334155',
+        lineWidth: isError ? 4 : 1.5,
+        radius: 8,
+        opacity: 1
+      },
+      labelCfg: {
+        style: { fill: '#111827', fontSize: 11, fontWeight: isError ? 700 : 400 },
+        position: 'center',
+        offset: 0
+      },
+      anchorPoints: [
+        [0, 0.5],  // left
+        [1, 0.5],  // right
+        [0.5, 0],  // top
+        [0.5, 1]   // bottom
+      ],
+      // Store original data
+      _data: n
+    };
+  });
+
+  const errorEdgeSet = new Set();
+  (viewData.errors || []).forEach(err => {
+    (err.edgePath || []).forEach(eid => errorEdgeSet.add(eid));
+  });
+  const errorNodeSet = new Set();
+  viewData.nodes.forEach(n => { if (n.isError) errorNodeSet.add(n.id); });
+  // Also from viewData errors' nodePath
+  (viewData.errors || []).forEach(err => {
+    (err.nodePath || []).forEach(nid => errorNodeSet.add(nid));
+  });
+
+  const g6Edges = viewData.edges.map(e => {
+    const isErr = e.isError || errorEdgeSet.has(e.id);
+    // Check if source/target are in error set for path highlighting
+    const pathErr = isErr || (errorNodeSet.has(e.from) && errorNodeSet.has(e.to));
+    const lineColor = isErr ? '#DC2626' : pathErr ? '#F59E0B' : channelColor(e.type);
+    const lineWidth = isErr ? 4 : pathErr ? 3 : 1.5;
+    const lineDash = isErr ? [6, 4] : pathErr ? [4, 3] : undefined;
+    return {
+      id: e.id,
+      source: e.from,
+      target: e.to,
+      label: e.type,
+      style: {
+        stroke: lineColor,
+        lineWidth: lineWidth,
+        lineDash: lineDash,
+        endArrow: {
+          path: 'M 0,0 L 8,4 L 8,-4 Z',
+          fill: lineColor,
+          d: 8
+        },
+        radius: 8,
+        offset: 8
+      },
+      labelCfg: {
+        style: { fill: lineColor, fontSize: 10, fontWeight: isErr ? 700 : 400 },
+        autoRotate: true
+      },
+      _data: e
+    };
+  });
+
+  // Destroy previous graph
+  if (g6Graph) { g6Graph.destroy(); g6Graph = null; }
+  container.innerHTML = '';
+
+  const width = container.clientWidth || 800;
+  const height = container.clientHeight || 620;
+
+  g6Graph = new G6.Graph({
+    container: 'graph-container',
+    width: width,
+    height: height,
+    modes: {
+      default: ['drag-canvas', 'zoom-canvas', 'drag-node', 'click-select']
+    },
+    defaultNode: {
+      type: 'rect',
+      size: [140, 52]
+    },
+    defaultEdge: {
+      type: 'polyline',
+      style: { stroke: '#94A3B8', lineWidth: 1.5, endArrow: true },
+      labelCfg: { autoRotate: true }
+    },
+    layout: { type: 'none' },
+    animate: true,
+    fitView: true,
+    fitViewPadding: [40, 40, 40, 40]
+  });
+
+  g6Graph.data({ nodes: g6Nodes, edges: g6Edges });
+  g6Graph.render();
+
+  // Click events
+  g6Graph.on('node:click', evt => {
+    const model = evt.item.getModel();
+    showNodeDetail(model._data || model);
+  });
+  g6Graph.on('edge:click', evt => {
+    const model = evt.item.getModel();
+    showEdgeDetail(model._data || model);
+  });
+
+  // Resize handler
+  const resizeHandler = () => {
+    if (g6Graph && !g6Graph.get('destroyed')) {
+      const w = container.clientWidth;
+      const h = container.clientHeight;
+      if (w > 0 && h > 0) g6Graph.changeSize(w, h);
+    }
+  };
+  window.g6ResizeHandler = resizeHandler;
+
+  updateGraphCount(viewData);
+}
+
+/* ============================================================
+   View System
+   ============================================================ */
+function getViewData() {
+  if (!graphData || !graphData.nodes) return { nodes: [], edges: [], errors: [] };
+
+  if (currentView === 'global') {
+    const view = graphData.views && graphData.views.global;
+    if (view) {
+      const nSet = new Set(view.nodeIds || []);
+      const eSet = new Set(view.edgeIds || []);
+      return {
+        nodes: graphData.nodes.filter(n => nSet.has(n.id)),
+        edges: graphData.edges.filter(e => eSet.has(e.id)),
+        errors: graphData.errors || []
+      };
+    }
+    return graphData;
+  }
+
+  if (currentView === 'error') {
+    const view = graphData.views && graphData.views.error;
+    if (view) {
+      const nSet = new Set(view.nodeIds || []);
+      const eSet = new Set(view.edgeIds || []);
+      // Add one-hop neighbors for context
+      const ctxNodes = new Set(nSet);
+      const ctxEdges = new Set(eSet);
+      graphData.edges.forEach(e => {
+        if (nSet.has(e.from) && !nSet.has(e.to)) { ctxNodes.add(e.to); ctxEdges.add(e.id); }
+        if (nSet.has(e.to) && !nSet.has(e.from)) { ctxNodes.add(e.from); ctxEdges.add(e.id); }
+      });
+      return {
+        nodes: graphData.nodes.filter(n => ctxNodes.has(n.id)),
+        edges: graphData.edges.filter(e => ctxEdges.has(e.id)),
+        errors: graphData.errors || []
+      };
+    }
+    return { nodes: [], edges: [], errors: [] };
+  }
+
+  if (currentView === 'task' && currentTaskId) {
+    const view = graphData.views && graphData.views.task && graphData.views.task[currentTaskId];
+    if (view) {
+      const nSet = new Set(view.nodeIds || []);
+      const eSet = new Set(view.edgeIds || []);
+      return {
+        nodes: graphData.nodes.filter(n => nSet.has(n.id)),
+        edges: graphData.edges.filter(e => eSet.has(e.id)),
+        errors: (graphData.errors || []).filter(e => e.taskId === currentTaskId)
+      };
+    }
+  }
+
+  if (currentView === 'path' && currentPathId) {
+    const view = graphData.views && graphData.views.path && graphData.views.path[currentPathId];
+    if (view) {
+      const nSet = new Set(view.nodeIds || []);
+      const eSet = new Set(view.edgeIds || []);
+      // One-hop neighbors for path context
+      const ctxNodes = new Set(nSet);
+      const ctxEdges = new Set(eSet);
+      graphData.edges.forEach(e => {
+        if (nSet.has(e.from) && !nSet.has(e.to)) { ctxNodes.add(e.to); ctxEdges.add(e.id); }
+        if (nSet.has(e.to) && !nSet.has(e.from)) { ctxNodes.add(e.from); ctxEdges.add(e.id); }
+      });
+      return {
+        nodes: graphData.nodes.filter(n => ctxNodes.has(n.id)),
+        edges: graphData.edges.filter(e => ctxEdges.has(e.id)),
+        errors: (graphData.errors || [])
+      };
+    }
+  }
+
+  return { nodes: [], edges: [], errors: [] };
+}
+
+async function switchView(view) {
+  currentView = view;
+  document.querySelectorAll('[data-view]').forEach(b => b.classList.toggle('active', b.dataset.view === view));
+
+  // Show/hide selectors
+  document.getElementById('taskSelector').style.display = view === 'task' ? 'inline-block' : 'none';
+  document.getElementById('pathSelector').style.display = view === 'path' ? 'inline-block' : 'none';
+
+  if (view === 'task') populateTaskSelector();
+  if (view === 'path') populatePathSelector();
+
+  await renderGraph();
+}
+
+function populateTaskSelector() {
+  const sel = document.getElementById('taskSelector');
+  const views = graphData.views && graphData.views.task;
+  if (!views) { sel.style.display = 'none'; return; }
+  const taskIds = Object.keys(views);
+  sel.innerHTML = '<option value="">选择任务...</option>' +
+    taskIds.map(tid => `<option value="${tid}" ${tid === currentTaskId ? 'selected' : ''}>${tid}</option>`).join('');
+}
+
+function populatePathSelector() {
+  const sel = document.getElementById('pathSelector');
+  const paths = graphData.paths || [];
+  sel.innerHTML = '<option value="">选择路径...</option>' +
+    paths.map(p => `<option value="${p.pathId}" ${p.pathId === currentPathId ? 'selected' : ''}>${p.pathId} (${p.status})</option>`).join('');
+}
+
+function onTaskSelect(taskId) {
+  currentTaskId = taskId || null;
+  if (currentTaskId) renderGraph();
+}
+
+function onPathSelect(pathId) {
+  currentPathId = pathId || null;
+  if (currentPathId) renderGraph();
+}
+
+function resetGraphView() {
+  currentView = 'global';
+  currentTaskId = null;
+  currentPathId = null;
+  document.querySelectorAll('[data-view]').forEach(b => b.classList.toggle('active', b.dataset.view === 'global'));
+  document.getElementById('taskSelector').style.display = 'none';
+  document.getElementById('pathSelector').style.display = 'none';
+  renderGraph();
+  renderErrors();
+}
+
+/* ============================================================
+   Upload & Data Loading
+   ============================================================ */
 const form=document.getElementById('uploadForm'),fileInput=document.getElementById('fileInput'),submitButton=document.getElementById('submitButton'),downloadLink=document.getElementById('downloadLink'),downloadZipLink=document.getElementById('downloadZipLink'),statusText=document.getElementById('statusText'),summaryTable=document.getElementById('summaryTable'),resultTable=document.getElementById('resultTable'),summaryCount=document.getElementById('summaryCount'),resultCount=document.getElementById('resultCount'),graphCount=document.getElementById('graphCount');
 const summaryColumns=[['taskId','任务编号'],['startNodeId','起点编号'],['startNodeName','起点名称'],['startType','入口类型'],['status','状态'],['pathCount','路径数'],['errorCode','错误编码'],['errorReason','错误原因'],['riskLevel','风险']];
 const resultColumns=[['taskId','任务编号'],['startNodeId','起点编号'],['startNodeName','起点名称'],['startType','入口类型'],['status','状态'],['endNodeId','终点编号'],['endNodeName','终点名称'],['path','节点路径'],['channelPath','通道路径'],['readablePath','可读路径'],['errorCode','错误编码'],['errorReason','错误原因'],['riskLevel','风险']];
-const nodeColorMap={RAIN_INLET:'#FACC15',RAIN_WELL:'#FEF08A',SEWAGE_INLET:'#6B7280',SEWAGE_WELL:'#9CA3AF',COMBINED_WELL:'#A855F7',WWTP:'#22C55E',RIVER:'#38BDF8',LAKE:'#7DD3FC',RAIN_OUTLET:'#0EA5E9',LIFE_SEWAGE_INLET:'#92400E',NORMAL:'#E5E7EB'};
-const nodeTypeNameMap={RAIN_INLET:'雨水口',RAIN_WELL:'雨水井',SEWAGE_INLET:'污水口',SEWAGE_WELL:'污水井',COMBINED_WELL:'合流井',WWTP:'污水处理厂',RIVER:'河流',LAKE:'湖泊',RAIN_OUTLET:'雨水排口',LIFE_SEWAGE_INLET:'生活污水口',NORMAL:'普通节点'};
-let graphData={nodes:[],edges:[],errors:[]}; let allResults=[]; let activeTaskId=null; let chart=null; let graphLayerMode='overview';
-let overviewType='ALL'; let overviewPage=0; const OVERVIEW_PAGE_SIZE=4; const OVERVIEW_PATH_LIMIT=4;
-let ruleState=null, ruleEnums={startTypes:['RAIN','SEWAGE','LIFE_SEWAGE','CUSTOM'],channelTypes:['RAIN','SEWAGE','COMBINED','LIFE_SEWAGE','CUSTOM'],nodeTypes:['RAIN_INLET','SEWAGE_INLET','LIFE_SEWAGE_INLET','RAIN_WELL','SEWAGE_WELL','COMBINED_WELL','RAIN_OUTLET','RIVER','LAKE','WWTP','NORMAL']};
 
-form.addEventListener('submit',async(event)=>{event.preventDefault();const file=fileInput.files[0];if(!file){setStatus('请选择 .xlsx 文件。',true);return}if(!file.name.toLowerCase().endsWith('.xlsx')){setStatus('仅支持 .xlsx 文件。',true);return}submitButton.disabled=true;downloadLink.hidden=true;downloadZipLink.hidden=true;setStatus('正在检测...');clearTables();clearGraph();try{const formData=new FormData();formData.append('file',file);const response=await fetch('/api/pipe-flow/check-view-json',{method:'POST',body:formData});const payload=await response.json();if(!response.ok){throw new Error(payload.message||'检测失败')}allResults=payload.results||[];renderTable(summaryTable,summaryColumns,payload.summary||[]);renderTable(resultTable,resultColumns,allResults);summaryCount.textContent=`${(payload.summary||[]).length} 条`;resultCount.textContent=`${allResults.length} 条`;renderGraphPayload(payload.graph||{nodes:[],edges:[],errors:[]});switchPage('visual');await prepareDownload(file);setStatus('检测完成。')}catch(error){setStatus(error.message,true)}finally{submitButton.disabled=false}});
+form.addEventListener('submit',async(event)=>{event.preventDefault();const file=fileInput.files[0];if(!file){setStatus('请选择 .xlsx 文件。',true);return}if(!file.name.toLowerCase().endsWith('.xlsx')){setStatus('仅支持 .xlsx 文件。',true);return}submitButton.disabled=true;downloadLink.hidden=true;downloadZipLink.hidden=true;setStatus('正在检测...');clearTables();clearGraph();try{const formData=new FormData();formData.append('file',file);const response=await fetch('/api/pipe-flow/check-view-json',{method:'POST',body:formData});const payload=await response.json();if(!response.ok){throw new Error(payload.message||'检测失败')}allResults=payload.results||[];renderTable(summaryTable,summaryColumns,payload.summary||[]);renderTable(resultTable,resultColumns,allResults);summaryCount.textContent=`${(payload.summary||[]).length} 条`;resultCount.textContent=`${allResults.length} 条`;loadGraphData(payload.graph||{nodes:[],edges:[],paths:[],views:{global:{nodeIds:[],edgeIds:[]},error:{nodeIds:[],edgeIds:[]},task:{},path:{}},errors:[]});switchPage('visual');await prepareDownload(file);setStatus('检测完成。')}catch(error){setStatus(error.message,true)}finally{submitButton.disabled=false}});
+
+function loadGraphData(data) {
+  graphData = data;
+  currentView = 'global';
+  currentTaskId = null;
+  currentPathId = null;
+  renderLegend();
+  renderErrors();
+  // Reset view buttons
+  document.querySelectorAll('[data-view]').forEach(b => b.classList.toggle('active', b.dataset.view === 'global'));
+  document.getElementById('taskSelector').style.display = 'none';
+  document.getElementById('pathSelector').style.display = 'none';
+  renderGraph();
+}
+
 async function prepareDownload(file){const xForm=new FormData();xForm.append('file',file);const xlsxRes=await fetch('/api/pipe-flow/check',{method:'POST',body:xForm});if(xlsxRes.ok){const blob=await xlsxRes.blob();if(downloadLink.href)URL.revokeObjectURL(downloadLink.href);downloadLink.href=URL.createObjectURL(blob);downloadLink.download='pipe-flow-check-result.xlsx';downloadLink.hidden=false}const zForm=new FormData();zForm.append('file',file);const zipRes=await fetch('/api/pipe-flow/check-zip',{method:'POST',body:zForm});if(zipRes.ok){const blob=await zipRes.blob();if(downloadZipLink.href)URL.revokeObjectURL(downloadZipLink.href);downloadZipLink.href=URL.createObjectURL(blob);downloadZipLink.download='pipe-flow-check-result.zip';downloadZipLink.hidden=false}}
-function renderTable(container,columns,rows){if(!rows.length){container.innerHTML='<div class="empty">暂无结果</div>';return}const head=columns.map(([,label])=>`<th>${escapeHtml(label)}</th>`).join('');const body=rows.map(row=>`<tr>${columns.map(([key])=>`<td>${formatCell(key,row[key])}</td>`).join('')}</tr>`).join('');container.innerHTML=`<table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`}
-function formatCell(key,value){const text=value==null?'':String(value);if(key==='status'){const className=text==='通道正常'?'ok':'bad';return `<span class="badge ${className}">${escapeHtml(text)}</span>`}if(key==='riskLevel'){const className=text==='高'?'risk-high':text==='中'?'risk-mid':'';return `<span class="${className}">${escapeHtml(text)}</span>`}return escapeHtml(text)}
-function clearTables(){summaryCount.textContent='0 条';resultCount.textContent='0 条';summaryTable.innerHTML='<div class="empty">暂无结果</div>';resultTable.innerHTML='<div class="empty">暂无结果</div>'}
-function setStatus(message,isError=false){statusText.textContent=message;statusText.classList.toggle('error',isError)}
-function escapeHtml(value){return String(value).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#039;')}
-function channelColor(type){if(type==='RAIN')return '#0EA5E9';if(type==='SEWAGE')return '#64748B';if(type==='COMBINED')return '#8B5CF6';if(type==='LIFE_SEWAGE')return '#92400E';return '#94A3B8'}
-
-/* ---- forest layout: one tree per root, columns side by side ---- */
-function computeLayeredLayout(nodes, edges) {
-    if (!nodes || nodes.length === 0) return { positions: {}, nodeLayer: {}, treeIds: {} };
-    if (nodes.length === 1) return {
-        positions: { [nodes[0].id]: { x: 0, y: 0 } },
-        nodeLayer: { [nodes[0].id]: 0 },
-        treeIds: { [nodes[0].id]: nodes[0].id }
-    };
-
-    // Build graph
-    const outgoing = {};
-    nodes.forEach(n => { outgoing[n.id] = []; });
-    edges.forEach(e => { if (outgoing[e.from]) outgoing[e.from].push(e.to); });
-
-    // Find roots (no incoming edges)
-    const inDeg = {};
-    nodes.forEach(n => { inDeg[n.id] = 0; });
-    edges.forEach(e => { if (inDeg[e.to] !== undefined) inDeg[e.to]++; });
-    const roots = nodes.filter(n => inDeg[n.id] === 0).map(n => n.id);
-    if (roots.length === 0 && nodes.length > 0) roots.push(nodes[0].id);
-
-    // BFS from each root (first root claims each node)
-    const treeRoot = {};
-    roots.forEach(r => treeRoot[r] = r);
-    roots.forEach(root => {
-        const q = [root];
-        while (q.length) {
-            const cur = q.shift();
-            (outgoing[cur] || []).forEach(next => {
-                if (!treeRoot[next]) { treeRoot[next] = root; q.push(next); }
-            });
-        }
-    });
-    nodes.forEach(n => { if (!treeRoot[n.id]) treeRoot[n.id] = n.id; });
-
-    // Group nodes by root
-    const treeMap = {};
-    Object.entries(treeRoot).forEach(([id, r]) => {
-        if (!treeMap[r]) treeMap[r] = [];
-        treeMap[r].push(id);
-    });
-
-    // Independent layout per tree
-    const V = 350, H = 300, treeGap = 450;
-    const positions = {};
-    const nodeLayer = {};
-    let totalWidth = 0;
-
-    Object.entries(treeMap).forEach(([rootId, ids]) => {
-        // Edges within this tree
-        const tEdges = edges.filter(e => ids.includes(e.from) && ids.includes(e.to));
-
-        // BFS layering
-        const tLay = {}, q = [rootId];
-        tLay[rootId] = 0;
-        const vis = new Set(q);
-        let maxL = 0;
-        while (q.length) {
-            const cur = q.shift(), nl = tLay[cur] + 1;
-            (outgoing[cur] || []).forEach(next => {
-                if (ids.includes(next) && !vis.has(next)) {
-                    vis.add(next); tLay[next] = nl; maxL = Math.max(maxL, nl); q.push(next);
-                }
-            });
-        }
-        ids.forEach(id => { if (tLay[id] === undefined) tLay[id] = ++maxL; });
-
-        // Group by layer
-        const byL = {};
-        ids.forEach(id => { (byL[tLay[id]] || (byL[tLay[id]] = [])).push(id); });
-        const keys = Object.keys(byL).sort((a, b) => a - b);
-
-        // Barycenter
-        const ord = {};
-        if (keys.length > 0) ord[keys[0]] = byL[keys[0]];
-        for (let li = 1; li < keys.length; li++) {
-            const ck = keys[li], pk = keys[li - 1], prev = ord[pk];
-            const bar = {};
-            byL[ck].forEach(id => {
-                const preds = tEdges.filter(e => e.to === id).map(e => e.from);
-                const pp = preds.filter(p => prev.includes(p));
-                const s = pp.reduce((a, p) => { const i = prev.indexOf(p); return a + (i >= 0 ? i : 0); }, 0);
-                bar[id] = pp.length > 0 ? s / pp.length : -1;
-            });
-            ord[ck] = [...byL[ck]].sort((a, b) => { const ba = bar[a] < 0 ? 9999 : bar[a], bb = bar[b] < 0 ? 9999 : bar[b]; return ba - bb; });
-        }
-
-        // Position within tree column
-        let treeW = 0;
-        keys.forEach(l => {
-            const layerIds = ord[l] || byL[l];
-            const tw = (layerIds.length - 1) * H;
-            layerIds.forEach((id, i) => {
-                positions[id] = { x: totalWidth + i * H, y: parseInt(l) * V };
-            });
-            treeW = Math.max(treeW, tw);
-        });
-        treeW = Math.max(treeW, H);
-
-        totalWidth += treeW + treeGap;
-        ids.forEach(id => { nodeLayer[id] = tLay[id]; });
-    });
-
-    // Center the forest
-    const off = -totalWidth / 2;
-    if (off !== 0) Object.keys(positions).forEach(id => { positions[id].x += off; });
-
-    return { positions, nodeLayer, treeIds: treeRoot };
-}
-
-function laneIndexForType(type) {
-    if (type === 'RAIN_INLET' || type === 'RAIN_WELL') return 0;
-    if (type === 'RAIN_OUTLET' || type === 'RIVER' || type === 'LAKE') return 1;
-    if (type === 'SEWAGE_INLET' || type === 'SEWAGE_WELL') return 2;
-    if (type === 'LIFE_SEWAGE_INLET') return 3;
-    if (type === 'COMBINED_WELL' || type === 'WWTP') return 4;
-    return 5;
-}
-
-function computeLaneLayeredLayout(nodes, edges) {
-    if (!nodes || nodes.length === 0) return { positions: {}, nodeLayer: {}, treeIds: {} };
-    const X_GAP = 280;
-    const PATH_GAP = 92;
-    const TASK_GAP = 130;
-    const LANE_GAP = 180;
-    const positions = {};
-    const nodeLayer = {};
-    const treeIds = {};
-    const taskLane = {};
-    const laneTaskOrder = {};
-    const taskBaseY = {};
-
-    nodes.forEach(node => {
-        const taskId = node.taskId || 'GLOBAL';
-        if (taskLane[taskId] === undefined) {
-            const startNode = nodes.find(item => item.taskId === taskId && item.pathIndex === 0) || node;
-            taskLane[taskId] = laneIndexForType(startNode.type);
-        }
-    });
-
-    Object.keys(taskLane).sort().forEach(taskId => {
-        const lane = taskLane[taskId];
-        if (!laneTaskOrder[lane]) laneTaskOrder[lane] = [];
-        if (!laneTaskOrder[lane].includes(taskId)) laneTaskOrder[lane].push(taskId);
-    });
-    let yCursor = 0;
-    Object.keys(laneTaskOrder).map(Number).sort((a, b) => a - b).forEach(lane => {
-        laneTaskOrder[lane].forEach(taskId => {
-            taskBaseY[taskId] = yCursor;
-            const pathCount = Math.max(1, ...nodes.filter(node => node.taskId === taskId).map(node => (node.pathNo || 0) + 1));
-            yCursor += pathCount * PATH_GAP + TASK_GAP;
-        });
-        yCursor += LANE_GAP;
-    });
-
-    nodes.forEach(node => {
-        const taskId = node.taskId || 'GLOBAL';
-        const layer = node.pathIndex !== undefined ? node.pathIndex : 0;
-        const pathNo = node.pathNo !== undefined ? node.pathNo : 0;
-        positions[node.id] = {
-            x: layer * X_GAP,
-            y: (taskBaseY[taskId] || 0) + pathNo * PATH_GAP
-        };
-        nodeLayer[node.id] = layer;
-        treeIds[node.id] = taskId;
-    });
-
-    return { positions, nodeLayer, treeIds };
-}
-
-function renderGraphPayload(data) {
-    graphData = data || { nodes: [], edges: [], errors: [] };
-    activeTaskId = null;
-    overviewType = 'ALL';
-    overviewPage = 0;
-    graphCount.textContent = `${graphData.nodes.length} 节点 / ${graphData.edges.length} 边`;
-    renderLegend();
-    renderErrors();
-    setGraphLayer('overview');
-}
 
 function clearGraph() {
-    graphData = { nodes: [], edges: [], errors: [] };
-    allResults = [];
-    activeTaskId = null;
-    overviewType = 'ALL';
-    overviewPage = 0;
-    graphCount.textContent = '未加载';
-    document.getElementById('graphDetail').innerHTML = '上传 Excel 并检测后展示图。';
-    document.getElementById('errorList').innerHTML = '暂无数据。';
-    if (chart) chart.clear();
-}
-
-function splitPathValue(path) {
-    return String(path || '').split('->').map(id => id.trim()).filter(Boolean);
-}
-
-function edgeIdsFromPath(path) {
-    const ids = splitPathValue(path);
-    const edgeIds = [];
-    for (let i = 0; i < ids.length - 1; i++) edgeIds.push(ids[i] + '->' + ids[i + 1]);
-    return edgeIds;
-}
-
-function buildTaskGraphData(taskId) {
-    const taskResults = allResults.filter(result => result.taskId === taskId);
-    if (!taskId || taskResults.length === 0) return graphData;
-
-    const nodeIds = new Set();
-    const edgeIds = new Set();
-    taskResults.forEach(result => {
-        splitPathValue(result.path).forEach(id => nodeIds.add(id));
-        edgeIdsFromPath(result.path).forEach(id => edgeIds.add(id));
-    });
-
-    return {
-        nodes: (graphData.nodes || []).filter(node => nodeIds.has(node.id)),
-        edges: (graphData.edges || []).filter(edge => edgeIds.has(edge.id)),
-        errors: (graphData.errors || []).filter(error => error.taskId === taskId)
-    };
-}
-
-function nodeMapById() {
-    const map = {};
-    (graphData.nodes || []).forEach(node => { map[node.id] = node; });
-    return map;
-}
-
-function edgeMapById() {
-    const map = {};
-    (graphData.edges || []).forEach(edge => { map[edge.id] = edge; });
-    return map;
-}
-
-function nodeKey(node) {
-    return node.realId || node.id;
-}
-
-function overviewTaskList() {
-    const tasks = new Map();
-    (allResults || []).forEach(result => {
-        if (!tasks.has(result.taskId)) tasks.set(result.taskId, { taskId: result.taskId, startType: result.startType });
-    });
-    return Array.from(tasks.values())
-        .filter(task => overviewType === 'ALL' || task.startType === overviewType)
-        .sort((a, b) => a.taskId.localeCompare(b.taskId));
-}
-
-function overviewPageCount() {
-    return Math.max(1, Math.ceil(overviewTaskList().length / OVERVIEW_PAGE_SIZE));
-}
-
-function visibleOverviewTaskIds() {
-    const tasks = overviewTaskList();
-    const pageCount = overviewPageCount();
-    overviewPage = Math.min(Math.max(overviewPage, 0), pageCount - 1);
-    const start = overviewPage * OVERVIEW_PAGE_SIZE;
-    return tasks.slice(start, start + OVERVIEW_PAGE_SIZE).map(task => task.taskId);
-}
-
-function renderOverviewControls() {
-    const controls = document.getElementById('overviewControls');
-    if (!controls) return;
-    const visible = !activeTaskId && graphLayerMode !== 'full';
-    controls.hidden = !visible;
-    document.getElementById('overviewTypeFilter').value = overviewType;
-    const pageCount = overviewPageCount();
-    overviewPage = Math.min(overviewPage, pageCount - 1);
-    document.getElementById('overviewPageText').textContent = `第 ${overviewPage + 1} / ${pageCount} 页`;
-    document.getElementById('overviewPrev').disabled = overviewPage <= 0;
-    document.getElementById('overviewNext').disabled = overviewPage >= pageCount - 1;
-}
-
-function setOverviewType(type) {
-    overviewType = type;
-    overviewPage = 0;
-    activeTaskId = null;
-    if (graphLayerMode === 'full') graphLayerMode = 'overview';
-    renderGraph(graphLayerMode);
-}
-
-function changeOverviewPage(delta) {
-    overviewPage = Math.min(Math.max(overviewPage + delta, 0), overviewPageCount() - 1);
-    renderGraph(graphLayerMode);
-}
-
-function buildOverviewGraphData() {
-    if (!graphData.nodes || graphData.nodes.length === 0) return graphData;
-    const visibleTaskIds = new Set(visibleOverviewTaskIds());
-    const groupedResults = {};
-    (allResults || []).filter(result => visibleTaskIds.has(result.taskId)).forEach(result => {
-        if (!groupedResults[result.taskId]) groupedResults[result.taskId] = [];
-        if (!groupedResults[result.taskId].some(item => item.path === result.path)) groupedResults[result.taskId].push(result);
-    });
-    const visibleResults = Object.values(groupedResults).flatMap(results => results
-        .sort((a, b) => Number(!!b.errorCode) - Number(!!a.errorCode))
-        .slice(0, OVERVIEW_PATH_LIMIT));
-    const visibleErrors = (graphData.errors || []).filter(error => visibleTaskIds.has(error.taskId));
-    const nodeMap = nodeMapById();
-    const directEdges = edgeMapById();
-    const inDeg = {}, outDeg = {};
-    (graphData.nodes || []).forEach(node => { inDeg[node.id] = 0; outDeg[node.id] = 0; });
-    (graphData.edges || []).forEach(edge => {
-        if (outDeg[edge.from] !== undefined) outDeg[edge.from]++;
-        if (inDeg[edge.to] !== undefined) inDeg[edge.to]++;
-    });
-
-    const terminalTypes = new Set(['RIVER', 'LAKE', 'RAIN_OUTLET', 'WWTP']);
-    const keyNodeIds = new Set();
-    visibleResults.forEach(result => {
-        const ids = splitPathValue(result.path);
-        if (result.startNodeId) keyNodeIds.add(result.startNodeId);
-        if (ids.length) {
-            keyNodeIds.add(ids[0]);
-            keyNodeIds.add(ids[ids.length - 1]);
-        }
-    });
-    visibleErrors.forEach(error => {
-        if (error.startNodeId) keyNodeIds.add(error.startNodeId);
-        (error.nodePath || []).forEach(id => keyNodeIds.add(id));
-    });
-    (graphData.nodes || []).forEach(node => {
-        if (terminalTypes.has(node.type) || outDeg[node.id] > 1 || inDeg[node.id] > 1) keyNodeIds.add(node.id);
-    });
-
-    const overviewNodes = [];
-    const overviewEdges = [];
-    const taskPathCounter = {};
-    visibleResults.forEach(result => {
-        const ids = splitPathValue(result.path);
-        if (ids.length < 2) return;
-        const pathNo = taskPathCounter[result.taskId] || 0;
-        taskPathCounter[result.taskId] = pathNo + 1;
-        const keySeq = [];
-        ids.forEach((id, index) => {
-            if (keyNodeIds.has(id) || index === 0 || index === ids.length - 1) keySeq.push({ id, index });
-        });
-        for (let i = 0; i < keySeq.length; i++) {
-            const base = nodeMap[keySeq[i].id];
-            if (!base) continue;
-            overviewNodes.push({
-                ...base,
-                id: result.taskId + '::' + pathNo + '::' + keySeq[i].id + '::' + keySeq[i].index,
-                realId: keySeq[i].id,
-                taskId: result.taskId,
-                pathNo: pathNo,
-                pathIndex: i,
-                rawPathIndex: keySeq[i].index
-            });
-        }
-        let prev = keySeq[0];
-        let prevIndex = 0;
-        for (let i = 1; i < keySeq.length; i++) {
-            const cur = keySeq[i];
-            const direct = directEdges[prev.id + '->' + cur.id];
-            const fromVirtual = result.taskId + '::' + pathNo + '::' + prev.id + '::' + prev.index;
-            const toVirtual = result.taskId + '::' + pathNo + '::' + cur.id + '::' + cur.index;
-            overviewEdges.push({
-                    id: fromVirtual + '->' + toVirtual,
-                    from: fromVirtual,
-                    to: toVirtual,
-                    realFrom: prev.id,
-                    realTo: cur.id,
-                    type: direct ? direct.type : 'PATH',
-                    status: 'normal',
-                    remark: direct ? (direct.remark || '') : '折叠中间节点',
-                    folded: Math.max(0, cur.index - prevIndex - 1),
-                    pathCount: 1,
-                    taskId: result.taskId
-            });
-            prev = cur;
-            prevIndex = cur.index;
-        }
-    });
-
-    return {
-        nodes: overviewNodes,
-        edges: overviewEdges,
-        errors: visibleErrors
-    };
-}
-
-function currentGraphData() {
-    if (activeTaskId) return buildTaskGraphData(activeTaskId);
-    if (graphLayerMode === 'full') return graphData;
-    return buildOverviewGraphData();
+  graphData = { nodes:[], edges:[], paths:[], views:{ global:{nodeIds:[],edgeIds:[]}, error:{nodeIds:[],edgeIds:[]}, task:{}, path:{} }, errors:[] };
+  allResults = [];
+  currentView = 'global'; currentTaskId = null; currentPathId = null;
+  graphCount.textContent = '未加载';
+  document.getElementById('graphDetail').innerHTML = '上传 Excel 并检测后展示图。';
+  document.getElementById('errorList').innerHTML = '暂无数据。';
+  if (g6Graph) { g6Graph.destroy(); g6Graph = null; }
 }
 
 function updateGraphCount(viewData) {
-    if (activeTaskId) {
-        graphCount.textContent = `${activeTaskId} 任务子图：${viewData.nodes.length} 节点 / ${viewData.edges.length} 边`;
-    } else {
-        const scope = graphLayerMode === 'full' ? '全量图' : '概览图';
-        const taskText = graphLayerMode === 'full' ? '' : ` / ${visibleOverviewTaskIds().length} 个入口任务`;
-        graphCount.textContent = `${scope}：${viewData.nodes.length} 节点 / ${viewData.edges.length} 边${taskText}`;
-    }
+  const v = viewData || getViewData();
+  const scope = { global:'全量拓扑', error:'错误子图', task:'任务子图', path:'路径上下文' }[currentView] || '图';
+  graphCount.textContent = `${scope}：${(v.nodes||[]).length} 节点 / ${(v.edges||[]).length} 边`;
 }
 
-function buildGraphOption(mode = 'overview') {
-    const viewData = currentGraphData();
-    const errorNodeIds = new Set((viewData.errors || []).map(e => e.startNodeId).filter(Boolean));
-    const errorEdgeIds = new Set();
-    const pathNodeIds = new Set((viewData.errors || []).flatMap(e => e.nodePath || []));
-    const pathEdgeIds = new Set((viewData.errors || []).flatMap(e => e.edgePath || []));
-    const focusErrorOnly = mode === 'errorNodes' || mode === 'errorPath';
-    const showPath = mode === 'errorPath';
+/* ============================================================
+   Table Rendering
+   ============================================================ */
+function renderTable(container,columns,rows){if(!rows.length){container.innerHTML='<div class="empty">暂无结果</div>';return}const head=columns.map(([,label])=>`<th>${escapeHtml(label)}</th>`).join('');const body=rows.map(row=>`<tr>${columns.map(([key])=>`<td>${formatCell(key,row[key])}</td>`).join('')}</tr>`).join('');container.innerHTML=`<table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`}
+function formatCell(key,value){const text=value==null?'':String(value);if(key==='status'){const className=text==='通道正常'?'ok':'bad';return`<span class="badge ${className}">${escapeHtml(text)}</span>`}if(key==='riskLevel'){const className=text==='高'?'risk-high':text==='中'?'risk-mid':'';return`<span class="${className}">${escapeHtml(text)}</span>`}return escapeHtml(text)}
+function clearTables(){summaryCount.textContent='0 条';resultCount.textContent='0 条';summaryTable.innerHTML='<div class="empty">暂无结果</div>';resultTable.innerHTML='<div class="empty">暂无结果</div>'}
+function setStatus(message,isError=false){statusText.textContent=message;statusText.classList.toggle('error',isError)}
+function escapeHtml(value){return String(value).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#039;')}
 
-    // Use server-provided positions (from Graphviz) when available — no overlap
-    const isOverview = !activeTaskId && mode !== 'full';
-    const hasServerPos = !activeTaskId && mode === 'full' && viewData.nodes && viewData.nodes.length > 0 && viewData.nodes[0].x !== undefined;
-
-    let layout = { positions: {}, nodeLayer: {}, treeIds: {} };
-    let nodeLayer = {}, treeIds = {};
-    if (!hasServerPos) {
-        layout = isOverview
-            ? computeLaneLayeredLayout(viewData.nodes || [], viewData.edges || [])
-            : computeLayeredLayout(viewData.nodes || [], viewData.edges || []);
-        nodeLayer = layout.nodeLayer || {};
-        treeIds = layout.treeIds || {};
-    }
-
-    const nodes = (viewData.nodes || []).map(n => {
-        const realId = nodeKey(n);
-        const isError = errorNodeIds.has(realId);
-        const isPathNode = showPath && pathNodeIds.has(realId);
-        const faded = focusErrorOnly && !(isError || isPathNode);
-        let x = 0, y = 0;
-        if (hasServerPos) {
-            x = n.x; y = n.y;
-        } else {
-            const p = layout.positions ? layout.positions[n.id] : null;
-            if (p) { x = p.x; y = p.y; }
-        }
-        const displayName = n.taskId && n.pathIndex === 0
-            ? '[' + n.taskId + '] ' + n.name + '\n' + realId
-            : n.name + '\n' + realId;
-        return {
-            id: n.id, name: displayName, value: n,
-            x: x, y: y,
-            symbol: 'roundRect',
-            symbolSize: isError ? [132, 52] : [120, 46],
-            itemStyle: {
-                color: nodeColorMap[n.type] || nodeColorMap.NORMAL,
-                borderColor: isError ? '#DC2626' : isPathNode ? '#F59E0B' : '#334155',
-                borderWidth: isError ? 4 : isPathNode ? 3 : 1.5,
-                opacity: faded ? 0.22 : 1
-            },
-            label: { show: true, color: '#111827', fontSize: 10, opacity: faded ? 0.25 : 1 }
-        };
-    });
-
-    const links = (viewData.edges || []).map(e => {
-        const isError = errorEdgeIds.has(e.id);
-        const realEdgeId = (e.realFrom || e.from) + '->' + (e.realTo || e.to);
-        const isPathEdge = showPath && (pathEdgeIds.has(e.id) || pathEdgeIds.has(realEdgeId));
-        const faded = focusErrorOnly && !isPathEdge;
-        const crossTree = treeIds[e.from] && treeIds[e.to] && treeIds[e.from] !== treeIds[e.to];
-        let cv = 0.15;
-        if (!hasServerPos) {
-            const sl = nodeLayer[e.from], tl = nodeLayer[e.to];
-            const dist = tl !== undefined && sl !== undefined ? Math.abs(tl - sl) : 1;
-            if (dist >= 3) cv = 0.8;
-            else if (dist >= 2) cv = 0.5;
-            const srcPos = layout.positions ? layout.positions[e.from] : null;
-            if (srcPos && srcPos.x > 0) cv = -cv;
-        }
-        return {
-            source: e.from, target: e.to, value: e,
-            lineStyle: {
-                color: isError ? '#DC2626' : isPathEdge ? '#F59E0B' : channelColor(e.type),
-                width: isError ? 5 : isPathEdge ? 4 : crossTree ? 1.5 : 2,
-                type: isError ? 'dashed' : crossTree ? 'dotted' : 'solid',
-                curveness: cv,
-                opacity: faded ? 0.16 : crossTree ? 0.4 : 0.95
-            },
-            label: { show: showPath && isPathEdge, formatter: e.type, color: isError ? '#DC2626' : isPathEdge ? '#B45309' : '#475569', fontSize: 11, opacity: faded ? 0.2 : 1 }
-        };
-    });
-
-    return {
-        animationDuration: 500,
-        tooltip: {
-            trigger: 'item',
-            formatter: function (params) {
-                if (params.dataType === 'node') {
-                    const n = params.data.value;
-                    return '<b>' + n.name + ' (' + nodeKey(n) + ')</b><br/>类型：' + (nodeTypeNameMap[n.type] || n.type) + '<br/>状态：' + (n.status === 'error' ? '错误相关节点' : '正常') + '<br/>备注：' + (n.remark || '');
-                }
-                if (params.dataType === 'edge') {
-                    const e = params.data.value;
-                    return '<b>' + (e.realFrom || e.from) + ' → ' + (e.realTo || e.to) + '</b><br/>通道：' + e.type + '<br/>状态：' + (e.status === 'error' ? '错误链路' : '正常') + '<br/>备注：' + (e.remark || '');
-                }
-                return '';
-            }
-        },
-        series: [{
-            type: 'graph',
-            layout: 'none',
-            roam: true,
-            zoom: 0.9,
-            scaleLimit: { min: 0.7, max: 4 },
-            center: [0, 0],
-            draggable: true,
-            edgeSymbol: ['none', 'arrow'],
-            edgeSymbolSize: [0, 13],
-            emphasis: { focus: 'adjacency', lineStyle: { width: 6 } },
-            data: nodes,
-            links: links,
-            label: { position: 'inside' },
-            edgeLabel: { show: showPath },
-            lineStyle: { opacity: 0.95 }
-        }]
-    };
-}
-
-function renderGraph(mode = graphLayerMode) {
-    if (!chart) chart = echarts.init(document.getElementById('graph'));
-    renderOverviewControls();
-    updateGraphCount(currentGraphData());
-    chart.setOption(buildGraphOption(mode), true);
-    chart.off('click');
-    chart.on('click', params => {
-        if (params.dataType === 'node') showNodeDetail(params.data.value);
-        if (params.dataType === 'edge') showEdgeDetail(params.data.value);
-    });
-}
-
-function setGraphLayer(mode) {
-    activeTaskId = null;
-    graphLayerMode = mode;
-    document.querySelectorAll('[data-graph-layer]').forEach(button => button.classList.toggle('active', button.dataset.graphLayer === mode));
-    if (!graphData.nodes.length) return;
-    renderGraph(mode);
-    renderErrors();
-}
-function focusTaskGraph(taskId) {
-    activeTaskId = taskId;
-    graphLayerMode = (graphData.errors || []).some(error => error.taskId === taskId) ? 'errorPath' : 'overview';
-    document.querySelectorAll('[data-graph-layer]').forEach(button => button.classList.toggle('active', button.dataset.graphLayer === graphLayerMode));
-    renderGraph(graphLayerMode);
-    renderErrors();
-}
-function focusErrorPath() { setGraphLayer('errorPath'); }
-function resetGraph() { activeTaskId = null; setGraphLayer('overview'); renderErrors(); }
-function switchPage(page) {
-    document.querySelectorAll('[data-page]').forEach(el => el.classList.toggle('page-hidden', el.dataset.page !== page));
-    document.querySelectorAll('[data-page-tab]').forEach(button => button.classList.toggle('active', button.dataset.pageTab === page));
-    if (page === 'visual' && chart) setTimeout(() => chart.resize(), 0);
-    if (page === 'rules' && !ruleState) loadRules();
-}
-
-async function loadRules() {
-    const response = await fetch('/api/rules');
-    const payload = await response.json();
-    if (!response.ok) throw new Error(payload.message || '规则加载失败');
-    ruleState = payload.rules || {};
-    ruleEnums = {
-        startTypes: payload.startTypes || ruleEnums.startTypes,
-        channelTypes: payload.channelTypes || ruleEnums.channelTypes,
-        nodeTypes: payload.nodeTypes || ruleEnums.nodeTypes
-    };
-    renderRuleEditor();
-}
-
-async function saveRules() {
-    if (!ruleState) return;
-    collectRuleEditor();
-    const response = await fetch('/api/rules', { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(ruleState) });
-    const payload = await response.json();
-    if (!response.ok) throw new Error(payload.message || '规则保存失败');
-    ruleState = payload.rules || ruleState;
-    renderRuleEditor();
-    setStatus('规则已保存，下一次检测会使用新规则。');
-}
-
-async function resetRules() {
-    const response = await fetch('/api/rules/reset', { method:'POST' });
-    const payload = await response.json();
-    if (!response.ok) throw new Error(payload.message || '规则恢复失败');
-    ruleState = payload.rules || {};
-    renderRuleEditor();
-    setStatus('规则已恢复默认。');
-}
-
-function renderRuleEditor() {
-    const editor = document.getElementById('ruleEditor');
-    const policy = document.getElementById('rulePolicy');
-    const startRules = ruleState.startRules || {};
-    policy.innerHTML = '<h3>错误策略</h3>' + ['allDownstreamPathsMustBeValid','cycleAsError','deadEndAsError'].map(key =>
-        `<label><input type="checkbox" data-policy="${key}" ${ruleState.errorPolicy && ruleState.errorPolicy[key] ? 'checked' : ''}>${policyName(key)}</label>`
-    ).join('');
-    editor.innerHTML = ruleEnums.startTypes.map(type => {
-        const rule = startRules[type] || {};
-        return `<div class="rule-card" data-rule-type="${type}">
-            <h3>${type}</h3>
-            ${checkboxGroup(type,'allowedChannels','允许通道',ruleEnums.channelTypes,rule.allowedChannels)}
-            ${checkboxGroup(type,'specialWhenChannels','进入特殊状态的通道',ruleEnums.channelTypes,rule.specialWhenChannels)}
-            ${checkboxGroup(type,'normalEndTypes','正常合法终点',ruleEnums.nodeTypes,rule.normalEndTypes)}
-            ${checkboxGroup(type,'specialEndTypes','特殊状态合法终点',ruleEnums.nodeTypes,rule.specialEndTypes)}
-        </div>`;
-    }).join('');
-}
-
-function checkboxGroup(type, field, title, options, selected=[]) {
-    const selectedSet = new Set(selected || []);
-    return `<p><strong>${title}</strong></p><div class="rule-options">` + options.map(option =>
-        `<label><input type="checkbox" data-rule-type="${type}" data-rule-field="${field}" value="${option}" ${selectedSet.has(option) ? 'checked' : ''}>${option}</label>`
-    ).join('') + '</div>';
-}
-
-function collectRuleEditor() {
-    const startRules = {};
-    ruleEnums.startTypes.forEach(type => {
-        startRules[type] = {
-            allowedChannels: checkedRuleValues(type, 'allowedChannels'),
-            specialWhenChannels: checkedRuleValues(type, 'specialWhenChannels'),
-            normalEndTypes: checkedRuleValues(type, 'normalEndTypes'),
-            specialEndTypes: checkedRuleValues(type, 'specialEndTypes')
-        };
-    });
-    ruleState.startRules = startRules;
-    ruleState.errorPolicy = {
-        allDownstreamPathsMustBeValid: checkedPolicy('allDownstreamPathsMustBeValid'),
-        cycleAsError: checkedPolicy('cycleAsError'),
-        deadEndAsError: checkedPolicy('deadEndAsError')
-    };
-    ruleState.terminalTypes = ruleEnums.nodeTypes.filter(type => ['RIVER','LAKE','WWTP'].includes(type));
-}
-
-function checkedRuleValues(type, field) {
-    return Array.from(document.querySelectorAll(`[data-rule-type="${type}"][data-rule-field="${field}"]:checked`)).map(input => input.value);
-}
-
-function checkedPolicy(key) {
-    const input = document.querySelector(`[data-policy="${key}"]`);
-    return !!(input && input.checked);
-}
-
-function policyName(key) {
-    return {allDownstreamPathsMustBeValid:'所有下游路径都必须合法', cycleAsError:'环路判为错误', deadEndAsError:'死路判为错误'}[key] || key;
-}
-
+/* ============================================================
+   Detail Panel & Errors
+   ============================================================ */
 function showNodeDetail(n) {
-    document.getElementById('graphDetail').innerHTML = '<div class="kv"><strong>节点编号：</strong>' + escapeHtml(nodeKey(n)) + '</div><div class="kv"><strong>节点名称：</strong>' + escapeHtml(n.name) + '</div><div class="kv"><strong>节点类型：</strong>' + escapeHtml(nodeTypeNameMap[n.type] || n.type) + '</div><div class="kv"><strong>状态：</strong>' + (n.status === 'error' ? '<span class="status-error">错误相关节点</span>' : '<span class="status-ok">正常</span>') + '</div><div class="kv"><strong>备注：</strong>' + escapeHtml(n.remark || '') + '</div>';
+  document.getElementById('graphDetail').innerHTML =
+    '<div class="kv"><strong>节点编号：</strong>' + escapeHtml(n.id || '') + '</div>' +
+    '<div class="kv"><strong>节点名称：</strong>' + escapeHtml(n.name || '') + '</div>' +
+    '<div class="kv"><strong>节点类型：</strong>' + escapeHtml(NODE_TYPE_NAMES[n.type] || n.type || '') + '</div>' +
+    '<div class="kv"><strong>状态：</strong>' + (n.isError || n.status === 'error' ? '<span class="status-error">错误相关节点</span>' : '<span class="status-ok">正常</span>') + '</div>' +
+    '<div class="kv"><strong>是否入口：</strong>' + (n.isEntry ? '是' : '否') + '</div>' +
+    '<div class="kv"><strong>是否终点：</strong>' + (n.isTerminal ? '是' : '否') + '</div>' +
+    '<div class="kv"><strong>备注：</strong>' + escapeHtml(n.remark || '') + '</div>';
 }
-
 function showEdgeDetail(e) {
-    document.getElementById('graphDetail').innerHTML = '<div class="kv"><strong>边编号：</strong>' + escapeHtml((e.realFrom || e.from) + '->' + (e.realTo || e.to)) + '</div><div class="kv"><strong>上游节点：</strong>' + escapeHtml(e.realFrom || e.from) + '</div><div class="kv"><strong>下游节点：</strong>' + escapeHtml(e.realTo || e.to) + '</div><div class="kv"><strong>通道类型：</strong>' + escapeHtml(e.type) + '</div><div class="kv"><strong>状态：</strong>' + (e.status === 'error' ? '<span class="status-error">错误链路</span>' : '<span class="status-ok">正常</span>') + '</div><div class="kv"><strong>备注：</strong>' + escapeHtml(e.remark || '') + '</div>';
+  document.getElementById('graphDetail').innerHTML =
+    '<div class="kv"><strong>边编号：</strong>' + escapeHtml(e.id || '') + '</div>' +
+    '<div class="kv"><strong>上游节点：</strong>' + escapeHtml(e.from || e.source || '') + '</div>' +
+    '<div class="kv"><strong>下游节点：</strong>' + escapeHtml(e.to || e.target || '') + '</div>' +
+    '<div class="kv"><strong>通道类型：</strong>' + escapeHtml(e.type || '') + '</div>' +
+    '<div class="kv"><strong>状态：</strong>' + (e.isError || e.status === 'error' ? '<span class="status-error">错误链路</span>' : '<span class="status-ok">正常</span>') + '</div>' +
+    '<div class="kv"><strong>备注：</strong>' + escapeHtml(e.remark || '') + '</div>';
 }
 
 function renderLegend() {
-    const legend = document.getElementById('legend');
-    legend.innerHTML = Object.entries(nodeTypeNameMap).filter(([t]) => nodeColorMap[t]).map(([type, name]) => '<div class="legend-item"><span class="dot" style="background:' + nodeColorMap[type] + '"></span>' + name + '</div>').join('');
+  const legend = document.getElementById('legend');
+  legend.innerHTML = Object.entries(NODE_TYPE_NAMES).filter(([t]) => NODE_COLORS[t])
+    .map(([type,name]) => '<div class="legend-item"><span class="dot" style="background:' + NODE_COLORS[type] + '"></span>' + name + '</div>').join('');
 }
 
 function renderErrors() {
-    const box = document.getElementById('errorList');
-    if (!graphData.errors || graphData.errors.length === 0) {
-        box.innerHTML = '<div class="kv">暂无错误链路。</div>';
-        return;
-    }
-    box.innerHTML = graphData.errors.map(err => {
-        const activeClass = activeTaskId === err.taskId ? ' active' : '';
-        return '<div class="error-box' + activeClass + '" data-error-task="' + escapeHtml(err.taskId) + '"><strong>'
-            + escapeHtml(err.taskId) + ' | ' + escapeHtml(err.errorCode)
-            + '</strong><br/>' + escapeHtml(err.errorReason || '')
-            + '<br/><strong>错误路径：</strong>' + escapeHtml(err.readablePath || '')
-            + '<div class="error-action">查看该任务路径子图</div></div>';
-    }).join('');
-    box.querySelectorAll('[data-error-task]').forEach(item => {
-        item.addEventListener('click', () => focusTaskGraph(item.dataset.errorTask));
-    });
+  const box = document.getElementById('errorList');
+  if (!graphData.errors || graphData.errors.length === 0) {
+    box.innerHTML = '<div class="kv">暂无错误链路。</div>'; return;
+  }
+  box.innerHTML = graphData.errors.map(err =>
+    '<div class="error-box" onclick="onErrorClick(\'' + err.taskId + '\')">' +
+    '<strong>' + escapeHtml(err.taskId || '') + ' | ' + escapeHtml(err.errorCode || '') + '</strong><br/>' +
+    escapeHtml(err.errorReason || '') + '<br/>' +
+    '<strong>错误路径：</strong>' + escapeHtml(err.readablePath || '') + '</div>'
+  ).join('');
 }
 
-window.addEventListener('resize', () => { if (chart) chart.resize(); });
+function onErrorClick(taskId) {
+  currentView = 'task';
+  currentTaskId = taskId;
+  document.querySelectorAll('[data-view]').forEach(b => b.classList.toggle('active', b.dataset.view === 'task'));
+  document.getElementById('taskSelector').style.display = 'inline-block';
+  document.getElementById('pathSelector').style.display = 'none';
+  document.getElementById('taskSelector').value = taskId;
+  renderGraph();
+}
+
+function switchPage(page) {
+  document.querySelectorAll('[data-page]').forEach(el => el.classList.toggle('page-hidden', el.dataset.page !== page));
+  document.querySelectorAll('[data-page-tab]').forEach(b => b.classList.toggle('active', b.dataset.pageTab === page));
+  if (page === 'visual' && g6Graph && !g6Graph.get('destroyed')) {
+    const c = document.getElementById('graph-container');
+    if (c.clientWidth > 0 && c.clientHeight > 0) g6Graph.changeSize(c.clientWidth, c.clientHeight);
+  }
+}
+
+/* ============================================================
+   Rule Editor
+   ============================================================ */
+let ruleState=null,ruleEnums={startTypes:['RAIN','SEWAGE','LIFE_SEWAGE','CUSTOM'],channelTypes:['RAIN','SEWAGE','COMBINED','LIFE_SEWAGE','CUSTOM'],nodeTypes:['RAIN_INLET','SEWAGE_INLET','LIFE_SEWAGE_INLET','RAIN_WELL','SEWAGE_WELL','COMBINED_WELL','RAIN_OUTLET','RIVER','LAKE','WWTP','NORMAL']};
+
+async function loadRules(){const response=await fetch('/api/rules');const payload=await response.json();if(!response.ok)throw new Error(payload.message||'规则加载失败');ruleState=payload.rules||{};ruleEnums={startTypes:payload.startTypes||ruleEnums.startTypes,channelTypes:payload.channelTypes||ruleEnums.channelTypes,nodeTypes:payload.nodeTypes||ruleEnums.nodeTypes};renderRuleEditor()}
+async function saveRules(){if(!ruleState)return;collectRuleEditor();const response=await fetch('/api/rules',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(ruleState)});const payload=await response.json();if(!response.ok)throw new Error(payload.message||'规则保存失败');ruleState=payload.rules||ruleState;renderRuleEditor();setStatus('规则已保存，下一次检测会使用新规则。')}
+async function resetRules(){const response=await fetch('/api/rules/reset',{method:'POST'});const payload=await response.json();if(!response.ok)throw new Error(payload.message||'规则恢复失败');ruleState=payload.rules||{};renderRuleEditor();setStatus('规则已恢复默认。')}
+function renderRuleEditor(){const editor=document.getElementById('ruleEditor');const policy=document.getElementById('rulePolicy');const startRules=ruleState.startRules||{};policy.innerHTML='<h3>错误策略</h3>'+['allDownstreamPathsMustBeValid','cycleAsError','deadEndAsError'].map(key=>`<label><input type="checkbox" data-policy="${key}" ${ruleState.errorPolicy&&ruleState.errorPolicy[key]?'checked':''}>${policyName(key)}</label>`).join('');editor.innerHTML=ruleEnums.startTypes.map(type=>{const rule=startRules[type]||{};return`<div class="rule-card" data-rule-type="${type}"><h3>${type}</h3>${checkboxGroup(type,'allowedChannels','允许通道',ruleEnums.channelTypes,rule.allowedChannels)}${checkboxGroup(type,'specialWhenChannels','进入特殊状态的通道',ruleEnums.channelTypes,rule.specialWhenChannels)}${checkboxGroup(type,'normalEndTypes','正常合法终点',ruleEnums.nodeTypes,rule.normalEndTypes)}${checkboxGroup(type,'specialEndTypes','特殊状态合法终点',ruleEnums.nodeTypes,rule.specialEndTypes)}</div>`}).join('')}
+function checkboxGroup(type,field,title,options,selected=[]){const selectedSet=new Set(selected||[]);return`<p><strong>${title}</strong></p><div class="rule-options">${options.map(option=>`<label><input type="checkbox" data-rule-type="${type}" data-rule-field="${field}" value="${option}" ${selectedSet.has(option)?'checked':''}>${option}</label>`).join('')}</div>`}
+function collectRuleEditor(){const startRules={};ruleEnums.startTypes.forEach(type=>{startRules[type]={allowedChannels:checkedRuleValues(type,'allowedChannels'),specialWhenChannels:checkedRuleValues(type,'specialWhenChannels'),normalEndTypes:checkedRuleValues(type,'normalEndTypes'),specialEndTypes:checkedRuleValues(type,'specialEndTypes')}});ruleState.startRules=startRules;ruleState.errorPolicy={allDownstreamPathsMustBeValid:checkedPolicy('allDownstreamPathsMustBeValid'),cycleAsError:checkedPolicy('cycleAsError'),deadEndAsError:checkedPolicy('deadEndAsError')};ruleState.terminalTypes=ruleEnums.nodeTypes.filter(type=>['RIVER','LAKE','WWTP'].includes(type))}
+function checkedRuleValues(type,field){return Array.from(document.querySelectorAll(`[data-rule-type="${type}"][data-rule-field="${field}"]:checked`)).map(input=>input.value)}
+function checkedPolicy(key){const input=document.querySelector(`[data-policy="${key}"]`);return!!(input&&input.checked)}
+function policyName(key){return{allDownstreamPathsMustBeValid:'所有下游路径都必须合法',cycleAsError:'环路判为错误',deadEndAsError:'死路判为错误'}[key]||key}
+
+/* ============================================================
+   Window Events
+   ============================================================ */
+window.addEventListener('resize', () => {
+  if (g6Graph && !g6Graph.get('destroyed')) {
+    const c = document.getElementById('graph-container');
+    if (c.clientWidth > 0 && c.clientHeight > 0) g6Graph.changeSize(c.clientWidth, c.clientHeight);
+  }
+});
+
 renderLegend();
 clearTables();
 </script>

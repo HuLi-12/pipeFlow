@@ -8,6 +8,8 @@ import lombok.Data;
 @Builder
 public class CheckResult {
     private String taskId;
+    /** Unique path ID: taskId + "-P" + index, e.g. "T001-P001" */
+    private String pathId;
     private String startNodeId;
     private String startNodeName;
     private String startType;

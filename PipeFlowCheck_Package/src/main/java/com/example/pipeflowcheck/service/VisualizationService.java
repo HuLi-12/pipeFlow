@@ -170,18 +170,26 @@ public class VisualizationService {
         return generateDot(nodeMap, edges, Set.of(), Set.of());
     }
 
-    /** Collect only the task start nodes for error highlighting. */
+    /** Collect ALL node IDs from error paths (full path, not just start/end). */
     public Set<String> collectErrorNodeIds(List<CheckResult> results) {
         return results.stream()
                 .filter(r -> r.getErrorCode() != null)
-                .map(CheckResult::getStartNodeId)
+                .flatMap(r -> Arrays.stream(r.getPath().split("->")))
                 .filter(id -> !id.isEmpty())
                 .collect(Collectors.toSet());
     }
 
-    /** Edges are kept visible but are not highlighted as errors. */
+    /** Collect edge keys ("from->to") from error paths for red-highlighting edges. */
     public Set<String> collectErrorEdgeKeys(List<CheckResult> results) {
-        return Set.of();
+        return results.stream()
+                .filter(r -> r.getErrorCode() != null)
+                .flatMap(r -> {
+                    String[] nodes = r.getPath().split("->");
+                    if (nodes.length < 2) return java.util.stream.Stream.empty();
+                    return java.util.stream.IntStream.range(0, nodes.length - 1)
+                            .mapToObj(i -> nodes[i] + "->" + nodes[i + 1]);
+                })
+                .collect(Collectors.toSet());
     }
 
     /** Render DOT source to SVG string. Falls back to empty string. */
@@ -208,41 +216,205 @@ public class VisualizationService {
 
 
 
+    // ===== Terminal node types (used for isTerminal flag) =====
+    private static final Set<NodeType> TERMINAL_TYPES = Set.of(
+            NodeType.RIVER, NodeType.LAKE, NodeType.RAIN_OUTLET, NodeType.WWTP
+    );
+
+    // ===== Entry node types (used for isEntry flag) =====
+    private static final Set<NodeType> ENTRY_TYPES = Set.of(
+            NodeType.RAIN_INLET, NodeType.SEWAGE_INLET, NodeType.LIFE_SEWAGE_INLET
+    );
+
     /**
      * Build front-end friendly graph JSON payload from network data and check results.
-     * The payload shape is: {nodes:[], edges:[], errors:[]}.
-     * Node x/y positions are computed via Graphviz for an overlap-free layout.
+     *
+     * New payload shape:
+     * {
+     *   nodes:   [{id, name, type, status, width, height, isEntry, isTerminal, isError, x, y}],
+     *   edges:   [{id:"E00001", from, to, type, status, isError, remark}],
+     *   paths:   [{pathId, taskId, status, nodePath, edgePath, channelPath, errorCode, errorReason, readablePath}],
+     *   views:   {global:{nodeIds,edgeIds}, error:{nodeIds,edgeIds}, task:{T001:{nodeIds,edgeIds},...}, path:{pathId:{nodeIds,edgeIds},...}},
+     *   errors:  [...] (backward-compatible legacy field)
+     * }
      */
     public Map<String, Object> buildGraphPayload(Map<String, Node> nodeMap, List<Edge> edges, List<CheckResult> results) {
         Set<String> errorNodeIds = collectErrorNodeIds(results);
         Set<String> errorEdgeKeys = collectErrorEdgeKeys(results);
 
+        // ---- Build edgeIdMap: "from->to:channelType" → "E00001" ----
+        Map<String, String> edgeIdMap = new LinkedHashMap<>();
+        Map<String, String> edgeKeyById = new LinkedHashMap<>(); // edgeId → "from->to" (legacy key)
+        int edgeSeq = 0;
+        for (Edge edge : edges) {
+            String lookupKey = edge.getFromNodeId() + "->" + edge.getToNodeId() + ":" + edge.getChannelType().name();
+            String edgeId = String.format("E%05d", ++edgeSeq);
+            edgeIdMap.put(lookupKey, edgeId);
+            edgeKeyById.put(edgeId, edge.getFromNodeId() + "->" + edge.getToNodeId());
+        }
+
+        // ---- Build node payload with dimensions and flags ----
         List<Map<String, Object>> nodePayload = nodeMap.values().stream()
                 .map(node -> {
+                    boolean isError = errorNodeIds.contains(node.getNodeId());
                     Map<String, Object> item = new LinkedHashMap<>();
                     item.put("id", node.getNodeId());
                     item.put("name", node.getNodeName());
                     item.put("type", node.getNodeType().name());
-                    item.put("status", errorNodeIds.contains(node.getNodeId()) ? "error" : "normal");
+                    item.put("status", isError ? "error" : "normal");
+                    item.put("isEntry", ENTRY_TYPES.contains(node.getNodeType()));
+                    item.put("isTerminal", TERMINAL_TYPES.contains(node.getNodeType()));
+                    item.put("isError", isError);
                     item.put("remark", node.getRemark() == null ? "" : node.getRemark());
+                    // Node dimensions for layout engine
+                    int nameLen = Math.max(
+                            node.getNodeName() != null ? node.getNodeName().length() : 4,
+                            node.getNodeId() != null ? node.getNodeId().length() : 4
+                    );
+                    int width = Math.max(120, Math.min(220, nameLen * 12 + 40));
+                    int height = isError ? 62 : 52;
+                    item.put("width", width);
+                    item.put("height", height);
                     return item;
                 })
                 .collect(Collectors.toList());
 
+        // ---- Build edge payload with global edge ID ----
         List<Map<String, Object>> edgePayload = edges.stream()
                 .map(edge -> {
-                    String edgeKey = edge.getFromNodeId() + "->" + edge.getToNodeId();
+                    String lookupKey = edge.getFromNodeId() + "->" + edge.getToNodeId() + ":" + edge.getChannelType().name();
+                    String edgeId = edgeIdMap.get(lookupKey);
+                    String legacyKey = edge.getFromNodeId() + "->" + edge.getToNodeId();
+                    boolean isError = errorEdgeKeys.contains(legacyKey);
                     Map<String, Object> item = new LinkedHashMap<>();
-                    item.put("id", edgeKey);
+                    item.put("id", edgeId);
                     item.put("from", edge.getFromNodeId());
                     item.put("to", edge.getToNodeId());
                     item.put("type", edge.getChannelType().name());
-                    item.put("status", errorEdgeKeys.contains(edgeKey) ? "error" : "normal");
+                    item.put("status", isError ? "error" : "normal");
+                    item.put("isError", isError);
                     item.put("remark", edge.getRemark() == null ? "" : edge.getRemark());
                     return item;
                 })
                 .collect(Collectors.toList());
 
+        // ---- Build paths array from CheckResult ----
+        List<Map<String, Object>> pathPayload = new ArrayList<>();
+        for (CheckResult r : results) {
+            List<String> nodePath = splitPath(r.getPath());
+            List<String> edgePathList = buildEdgePath(r.getPath());
+            // Map legacy edge keys ("from->to") to global edge IDs
+            List<String> edgeIdPath = new ArrayList<>();
+            for (String legacyKey : edgePathList) {
+                String[] parts = legacyKey.split("->");
+                if (parts.length == 2) {
+                    // Look up by partial key (channel type unknown here, try both)
+                    // We store edge ID per result edge using the edgeKeyById reverse map
+                    // Since channel is unknown in path, we search edgeIdMap by prefix
+                    String prefix = legacyKey + ":";
+                    edgeIdMap.entrySet().stream()
+                            .filter(e -> e.getKey().startsWith(prefix))
+                            .findFirst()
+                            .ifPresent(e -> edgeIdPath.add(e.getValue()));
+                }
+            }
+
+            Map<String, Object> pathItem = new LinkedHashMap<>();
+            pathItem.put("pathId", r.getPathId() != null ? r.getPathId() : r.getTaskId() + "-P001");
+            pathItem.put("taskId", r.getTaskId());
+            pathItem.put("status", r.getStatus());
+            pathItem.put("nodePath", nodePath);
+            pathItem.put("edgePath", edgeIdPath);
+            pathItem.put("channelPath", splitPath(r.getChannelPath()));
+            pathItem.put("errorCode", r.getErrorCode() != null ? r.getErrorCode().name() : null);
+            pathItem.put("errorReason", r.getErrorReason() != null ? r.getErrorReason() : "");
+            pathItem.put("readablePath", r.getReadablePath() != null ? r.getReadablePath() : "");
+            pathPayload.add(pathItem);
+        }
+
+        // ---- Build views ----
+        Set<String> allNodeIds = nodeMap.keySet();
+        Set<String> allEdgeIds = edgePayload.stream()
+                .map(e -> (String) e.get("id"))
+                .collect(Collectors.toSet());
+
+        // Global view: all nodes and edges
+        Map<String, Object> globalView = new LinkedHashMap<>();
+        globalView.put("nodeIds", new ArrayList<>(allNodeIds));
+        globalView.put("edgeIds", new ArrayList<>(allEdgeIds));
+
+        // Error view: nodes and edges from error paths
+        Set<String> errorViewNodes = new LinkedHashSet<>();
+        Set<String> errorViewEdges = new LinkedHashSet<>();
+        for (Map<String, Object> p : pathPayload) {
+            if (p.get("errorCode") != null) {
+                errorViewNodes.addAll((List<String>) p.get("nodePath"));
+                errorViewEdges.addAll((List<String>) p.get("edgePath"));
+            }
+        }
+        Map<String, Object> errorView = new LinkedHashMap<>();
+        errorView.put("nodeIds", new ArrayList<>(errorViewNodes));
+        errorView.put("edgeIds", new ArrayList<>(errorViewEdges));
+
+        // Task view: group paths by taskId
+        Map<String, Map<String, Object>> taskView = new LinkedHashMap<>();
+        Map<String, Set<String>> taskNodes = new LinkedHashMap<>();
+        Map<String, Set<String>> taskEdges = new LinkedHashMap<>();
+        for (Map<String, Object> p : pathPayload) {
+            String tid = (String) p.get("taskId");
+            taskNodes.computeIfAbsent(tid, k -> new LinkedHashSet<>()).addAll((List<String>) p.get("nodePath"));
+            taskEdges.computeIfAbsent(tid, k -> new LinkedHashSet<>()).addAll((List<String>) p.get("edgePath"));
+        }
+        for (String tid : taskNodes.keySet()) {
+            Map<String, Object> tv = new LinkedHashMap<>();
+            tv.put("nodeIds", new ArrayList<>(taskNodes.get(tid)));
+            tv.put("edgeIds", new ArrayList<>(taskEdges.get(tid)));
+            taskView.put(tid, tv);
+        }
+
+        // Path view: each path gets its own view
+        Map<String, Map<String, Object>> pathView = new LinkedHashMap<>();
+        for (Map<String, Object> p : pathPayload) {
+            Map<String, Object> pv = new LinkedHashMap<>();
+            pv.put("nodeIds", p.get("nodePath"));
+            pv.put("edgeIds", p.get("edgePath"));
+            pathView.put((String) p.get("pathId"), pv);
+        }
+
+        Map<String, Object> views = new LinkedHashMap<>();
+        views.put("global", globalView);
+        views.put("error", errorView);
+        views.put("task", taskView);
+        views.put("path", pathView);
+
+        // ---- Compute backend layout positions ----
+        Map<String, double[]> positions = computeBackendLayout(nodeMap, edges);
+        if (!positions.isEmpty()) {
+            double minX = Double.MAX_VALUE, maxX = -Double.MAX_VALUE;
+            double minY = Double.MAX_VALUE, maxY = -Double.MAX_VALUE;
+            for (double[] pos : positions.values()) {
+                if (pos[0] < minX) minX = pos[0];
+                if (pos[0] > maxX) maxX = pos[0];
+                if (pos[1] < minY) minY = pos[1];
+                if (pos[1] > maxY) maxY = pos[1];
+            }
+            double cx = (minX + maxX) / 2;
+            double cy = (minY + maxY) / 2;
+            boolean flipY = (minY + maxY) < 0;
+
+            for (Map<String, Object> item : nodePayload) {
+                double[] pos = positions.get(item.get("id"));
+                if (pos != null) {
+                    double x = pos[0] - cx;
+                    double y = pos[1] - cy;
+                    if (flipY) y = -y;
+                    item.put("x", (int) Math.round(x));
+                    item.put("y", (int) Math.round(y));
+                }
+            }
+        }
+
+        // ---- Legacy error payload (backward compatible) ----
         List<Map<String, Object>> errorPayload = results.stream()
                 .filter(r -> r.getErrorCode() != null)
                 .map(r -> {
@@ -258,37 +430,12 @@ public class VisualizationService {
                 })
                 .collect(Collectors.toList());
 
-        // Compute backend layout positions (overlap-free, fixed spacing) and add x/y to nodes
-        Map<String, double[]> positions = computeBackendLayout(nodeMap, edges);
-        if (!positions.isEmpty()) {
-            double minX = Double.MAX_VALUE, maxX = -Double.MAX_VALUE;
-            double minY = Double.MAX_VALUE, maxY = -Double.MAX_VALUE;
-            for (double[] pos : positions.values()) {
-                if (pos[0] < minX) minX = pos[0];
-                if (pos[0] > maxX) maxX = pos[0];
-                if (pos[1] < minY) minY = pos[1];
-                if (pos[1] > maxY) maxY = pos[1];
-            }
-            double cx = (minX + maxX) / 2;
-            double cy = (minY + maxY) / 2;
-            // If Graphviz uses math coords (y-up), flip y
-            boolean flipY = (minY + maxY) < 0;
-
-            for (Map<String, Object> item : nodePayload) {
-                double[] pos = positions.get(item.get("id"));
-                if (pos != null) {
-                    double x = pos[0] - cx;
-                    double y = pos[1] - cy;
-                    if (flipY) y = -y;
-                    item.put("x", (int) Math.round(x));
-                    item.put("y", (int) Math.round(y));
-                }
-            }
-        }
-
+        // ---- Assemble final payload ----
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("nodes", nodePayload);
         payload.put("edges", edgePayload);
+        payload.put("paths", pathPayload);
+        payload.put("views", views);
         payload.put("errors", errorPayload);
         return payload;
     }
@@ -521,108 +668,193 @@ public class VisualizationService {
     }
 
     /**
-     * Generate a standalone HTML graph page with embedded JSON data.
-     * The page can be opened directly from the ZIP without requesting the backend.
+     * Generate a standalone HTML graph page with embedded JSON data (G6 + ELK).
      */
     public String generateStandaloneHtml(String graphJson) {
         String safeJson = graphJson == null || graphJson.isBlank() ? "{\"nodes\":[],\"edges\":[],\"errors\":[]}" : graphJson;
         return """
                 <!DOCTYPE html>
-                <html lang=\"zh-CN\">
+                <html lang="zh-CN">
                 <head>
-                  <meta charset=\"UTF-8\" />
-                  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\" />
+                  <meta charset="UTF-8" />
+                  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
                   <title>PipeFlowCheck 管网图</title>
-                  <script src=\"https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js\"></script>
+                  <script src="https://unpkg.com/@antv/g6@4.8.24/dist/g6.min.js"></script>
+                  <script src="https://unpkg.com/elkjs@0.8.2/lib/elk.bundled.min.js"></script>
                   <style>
-                    * { box-sizing: border-box; }
-                    body { margin:0; font-family: \"Microsoft YaHei\", Arial, sans-serif; background:#eef2f7; color:#111827; }
-                    .app { height:100vh; display:grid; grid-template-columns:minmax(0,1fr) 360px; gap:14px; padding:14px; }
-                    .card { background:#fff; border-radius:14px; box-shadow:0 10px 30px rgba(15,23,42,.08); overflow:hidden; }
-                    .header { height:58px; border-bottom:1px solid #e5e7eb; display:flex; align-items:center; justify-content:space-between; padding:0 18px; }
-                    .header h1 { margin:0; font-size:18px; }
-                    .hint { font-size:12px; color:#6b7280; }
-                    #graph { width:100%; height:calc(100vh - 86px); }
-                    .side { padding:16px; overflow-y:auto; }
-                    .side h2 { margin:0 0 10px; font-size:16px; }
-                    .section { margin-top:16px; padding-top:14px; border-top:1px solid #e5e7eb; }
-                    .btn-row { display:flex; gap:8px; margin-bottom:12px; }
-                    button { border:1px solid #cbd5e1; background:#fff; border-radius:8px; padding:7px 10px; cursor:pointer; font-size:13px; }
-                    button.active { background:#eff6ff; color:#1d4ed8; border-color:#93c5fd; }
-                    button:hover { background:#f8fafc; }
-                    .legend { display:grid; grid-template-columns:1fr 1fr; gap:8px; font-size:13px; }
-                    .legend-item { display:flex; align-items:center; gap:6px; }
-                    .dot { width:13px; height:13px; border-radius:999px; border:1px solid #475569; flex:0 0 auto; }
-                    .kv { font-size:13px; margin:8px 0; line-height:1.6; word-break:break-all; }
-                    .kv strong { color:#111827; }
-                    .error-box { background:#fff1f2; border:1px solid #fecdd3; border-radius:10px; padding:10px; margin-bottom:10px; font-size:13px; line-height:1.7; }
-                    .status-ok { color:#15803d; font-weight:700; }
-                    .status-error { color:#dc2626; font-weight:700; }
-                    @media (max-width:1000px) { .app { grid-template-columns:1fr; height:auto; } #graph { height:650px; } }
+                    *{box-sizing:border-box}body{margin:0;font-family:Arial,"Microsoft YaHei",sans-serif;background:#eef2f7;color:#111827}
+                    .app{height:100vh;display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:14px;padding:14px}
+                    .card{background:#fff;border-radius:14px;box-shadow:0 10px 30px rgba(15,23,42,.08);overflow:hidden}
+                    .header{height:54px;border-bottom:1px solid #e5e7eb;display:flex;align-items:center;padding:0 18px}
+                    .header h1{margin:0;font-size:17px}.header .hint{font-size:12px;color:#6b7280;margin-left:auto}
+                    #graph-container{width:100%;height:calc(100vh - 68px);background:#fff}
+                    .side{padding:14px;overflow-y:auto}
+                    .side h2{margin:0 0 10px;font-size:15px}
+                    .section{margin-top:14px;padding-top:12px;border-top:1px solid #e5e7eb}
+                    .btn-row{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
+                    button{border:1px solid #cbd5e1;background:#fff;border-radius:8px;padding:6px 10px;cursor:pointer;font-size:12px}
+                    button.active{background:#eff6ff;color:#1d4ed8;border-color:#93c5fd}
+                    button:hover{background:#f8fafc}
+                    .legend{display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:12px}
+                    .legend-item{display:flex;align-items:center;gap:6px}
+                    .dot{width:12px;height:12px;border-radius:999px;border:1px solid #475569;flex:0 0 auto}
+                    .kv{font-size:12px;margin:6px 0;line-height:1.6;word-break:break-all}
+                    .kv strong{color:#111827}
+                    .error-box{background:#fff1f2;border:1px solid #fecdd3;border-radius:8px;padding:8px;margin-bottom:8px;font-size:12px;line-height:1.6;cursor:pointer}
+                    .error-box:hover{background:#ffe4e6}
+                    .status-ok{color:#15803d;font-weight:700}
+                    .status-error{color:#dc2626;font-weight:700}
+                    @media(max-width:1000px){.app{grid-template-columns:1fr;height:auto}#graph-container{height:550px}}
                   </style>
                 </head>
                 <body>
-                  <div class=\"app\">
-                    <div class=\"card\"><div class=\"header\"><h1>PipeFlowCheck 管网图</h1><div class=\"hint\">黄色=雨水，灰色=污水，红色虚线=错误链路</div></div><div id=\"graph\"></div></div>
-                    <div class=\"card side\"><h2>操作</h2><div class=\"btn-row\"><button class=\"active\" data-graph-layer=\"all\" onclick=\"setGraphLayer('all')\">全部节点</button><button data-graph-layer=\"errorNodes\" onclick=\"setGraphLayer('errorNodes')\">错误节点</button><button data-graph-layer=\"errorPath\" onclick=\"setGraphLayer('errorPath')\">错误节点 + 路径</button></div><div class=\"section\"><h2>详情</h2><div id=\"detail\">点击节点或边查看详情。</div></div><div class=\"section\"><h2>错误链路</h2><div id=\"errorList\"></div></div><div class=\"section\"><h2>节点图例</h2><div class=\"legend\" id=\"legend\"></div></div></div>
+                  <div class="app">
+                    <div class="card">
+                      <div class="header"><h1>PipeFlowCheck 管网图</h1><div class="hint">拖动/滚轮缩放</div></div>
+                      <div id="graph-container"></div>
+                    </div>
+                    <div class="card side">
+                      <h2>操作</h2>
+                      <div class="btn-row">
+                        <button class="active" data-view="global" onclick="switchView('global')">全量拓扑</button>
+                        <button data-view="error" onclick="switchView('error')">错误子图</button>
+                      </div>
+                      <div class="section"><h2>详情</h2><div id="detail">点击节点或边查看详情。</div></div>
+                      <div class="section"><h2>错误链路</h2><div id="errorList"></div></div>
+                      <div class="section"><h2>节点图例</h2><div class="legend" id="legend"></div></div>
+                    </div>
                   </div>
                 <script>
-                const graphData = __GRAPH_DATA__;
-                const nodeColorMap={RAIN_INLET:'#FACC15',RAIN_WELL:'#FEF08A',SEWAGE_INLET:'#6B7280',SEWAGE_WELL:'#9CA3AF',COMBINED_WELL:'#A855F7',WWTP:'#22C55E',RIVER:'#38BDF8',LAKE:'#7DD3FC',RAIN_OUTLET:'#0EA5E9',LIFE_SEWAGE_INLET:'#92400E',NORMAL:'#E5E7EB'};
-                const nodeTypeNameMap={RAIN_INLET:'雨水口',RAIN_WELL:'雨水井',SEWAGE_INLET:'污水口',SEWAGE_WELL:'污水井',COMBINED_WELL:'合流井',WWTP:'污水处理厂',RIVER:'河流',LAKE:'湖泊',RAIN_OUTLET:'雨水排口',LIFE_SEWAGE_INLET:'生活污水口',NORMAL:'普通节点'};
-                function channelColor(type){ if(type==='RAIN')return '#0EA5E9'; if(type==='SEWAGE')return '#64748B'; if(type==='COMBINED')return '#8B5CF6'; if(type==='LIFE_SEWAGE')return '#92400E'; return '#94A3B8'; }
-                const chart=echarts.init(document.getElementById('graph'));
-                /* forest layout: one tree per root, columns side by side */
-                function computeLayout(nodes,edges){
-                  if(!nodes||!nodes.length)return{positions:{},nodeLayer:{},treeIds:{}};
-                  if(nodes.length===1)return{positions:{[nodes[0].id]:{x:0,y:0}},nodeLayer:{[nodes[0].id]:0},treeIds:{[nodes[0].id]:nodes[0].id}};
-                  const out={};nodes.forEach(n=>{out[n.id]=[];});edges.forEach(e=>{if(out[e.from])out[e.from].push(e.to);});
-                  const deg={};nodes.forEach(n=>{deg[n.id]=0;});edges.forEach(e=>{if(deg[e.to]!==undefined)deg[e.to]++;});
-                  const roots=nodes.filter(n=>deg[n.id]===0).map(n=>n.id);if(roots.length===0&&nodes.length>0)roots.push(nodes[0].id);
-                  const tr={};roots.forEach(r=>tr[r]=r);
-                  roots.forEach(root=>{const q=[root];while(q.length){const c=q.shift();(out[c]||[]).forEach(n=>{if(!tr[n]){tr[n]=root;q.push(n);}});}});
-                  nodes.forEach(n=>{if(!tr[n.id])tr[n.id]=n.id;});
-                  const tm={};Object.entries(tr).forEach(([id,r])=>{(tm[r]||(tm[r]=[])).push(id);});
-                  const V=350,H=300,tGap=450,pos={},nL={};let tw=0;
-                  Object.entries(tm).forEach(([rid,ids]) => {
-                    const te=edges.filter(e=>ids.includes(e.from)&&ids.includes(e.to));
-                    const tl={},q=[rid];tl[rid]=0;const vs=new Set(q);let mL=0;
-                    while(q.length){const c=q.shift(),nl=tl[c]+1;(out[c]||[]).forEach(n=>{if(ids.includes(n)&&!vs.has(n)){vs.add(n);tl[n]=nl;mL=Math.max(mL,nl);q.push(n);}});}
-                    ids.forEach(id=>{if(tl[id]===undefined)tl[id]=++mL;});
-                    const bL={};ids.forEach(id=>{(bL[tl[id]]||(bL[tl[id]]=[])).push(id);});const ks=Object.keys(bL).sort((a,b)=>a-b);
-                    const od={};if(ks.length>0)od[ks[0]]=bL[ks[0]];
-                    for(let li=1;li<ks.length;li++){const ck=ks[li],pk=ks[li-1],pr=od[pk];const br={};bL[ck].forEach(id=>{const p=te.filter(e=>e.to===id).map(e=>e.from),pp=p.filter(x=>pr.includes(x));const s=pp.reduce((a,p)=>{const i=pr.indexOf(p);return a+(i>=0?i:0);},0);br[id]=pp.length>0?s/pp.length:-1;});od[ck]=[...bL[ck]].sort((a,b)=>{const ba=br[a]<0?9999:br[a],bb=br[b]<0?9999:br[b];return ba-bb;});}
-                    let tW=0;
-                    ks.forEach(l=>{const lid=od[l]||bL[l],lw=(lid.length-1)*H;lid.forEach((id,i)=>{pos[id]={x:tw+i*H,y:parseInt(l)*V};});tW=Math.max(tW,lw);});
-                    tw+=Math.max(tW,H)+tGap;ids.forEach(id=>{nL[id]=tl[id];});
+                var graphData = __GRAPH_DATA__;
+                var NODE_COLORS={RAIN_INLET:'#FACC15',RAIN_WELL:'#FEF08A',SEWAGE_INLET:'#6B7280',SEWAGE_WELL:'#9CA3AF',COMBINED_WELL:'#A855F7',WWTP:'#22C55E',RIVER:'#38BDF8',LAKE:'#7DD3FC',RAIN_OUTLET:'#0EA5E9',LIFE_SEWAGE_INLET:'#92400E',NORMAL:'#E5E7EB'};
+                var NODE_TYPE_NAMES={RAIN_INLET:'雨水口',RAIN_WELL:'雨水井',SEWAGE_INLET:'污水口',SEWAGE_WELL:'污水井',COMBINED_WELL:'合流井',WWTP:'污水处理厂',RIVER:'河流',LAKE:'湖泊',RAIN_OUTLET:'雨水排口',LIFE_SEWAGE_INLET:'生活污水口',NORMAL:'普通节点'};
+                function channelColor(t){return t==='RAIN'?'#0EA5E9':t==='SEWAGE'?'#64748B':t==='COMBINED'?'#8B5CF6':t==='LIFE_SEWAGE'?'#92400E':'#94A3B8'}
+                var currentView='global',g6Graph=null,elkInstance=null,positionsCache=null;
+
+                function elkOpts(nc){var sn=80,lg=180,cg=150;if(nc<=30){sn=100;lg=220;cg=180}else if(nc<=100){sn=80;lg=180;cg=150}else{sn=60;lg=150;cg=120}return{'elk.algorithm':'layered','elk.direction':'RIGHT','elk.edgeRouting':'POLYLINE','elk.spacing.nodeNode':String(sn),'elk.spacing.edgeNode':'50','elk.spacing.edgeEdge':'30','elk.spacing.componentComponent':String(cg),'elk.layered.spacing.nodeNodeBetweenLayers':String(lg),'elk.layered.nodePlacement.strategy':'NETWORK_SIMPLEX','elk.layered.crossingMinimization.strategy':'LAYER_SWEEP','elk.layered.mergeEdges':'true','elk.partitioning.activate':'false'}}
+
+                async function runElk(nodes,edges){
+                  if(!elkInstance){try{elkInstance=new ELK()}catch(e){console.warn('ELK fail',e);return null}}
+                  if(!nodes||!nodes.length)return null;
+                  var ch=nodes.map(function(n){return{id:n.id,width:n.width||140,height:n.height||52}});
+                  var ek=edges.map(function(e){return{id:e.id,sources:[e.from],targets:[e.to]}});
+                  try{
+                    var r=await elkInstance.layout({id:'root',layoutOptions:elkOpts(nodes.length),children:ch,edges:ek});
+                    if(!r||!r.children)return null;
+                    var pos={},mx=-1/0,my=-1/0,MX=1/0,MY=1/0;
+                    r.children.forEach(function(c){if(c.x!==void 0){pos[c.id]={x:c.x,y:c.y};if(c.x<mx)mx=c.x;if(c.x>MX)MX=c.x;if(c.y<my)my=c.y;if(c.y>MY)MY=c.y}});
+                    var cx=(mx+MX)/2,cy=(my+MY)/2;
+                    Object.keys(pos).forEach(function(id){pos[id].x-=cx;pos[id].y-=cy});
+                    return pos;
+                  }catch(e){console.warn('ELK layout fail',e);return null}
+                }
+
+                function getViewData(){
+                  if(!graphData||!graphData.nodes)return{nodes:[],edges:[],errors:[]};
+                  if(currentView==='global'){return graphData}
+                  if(currentView==='error'){
+                    var ids=new Set;
+                    (graphData.errors||[]).forEach(function(e){(e.nodePath||[]).forEach(function(n){ids.add(n)})});
+                    var eids=new Set;
+                    (graphData.errors||[]).forEach(function(e){(e.edgePath||[]).forEach(function(ed){eids.add(ed)})});
+                    var nds=graphData.nodes.filter(function(n){return ids.has(n.id)});
+                    graphData.edges.forEach(function(e){if(ids.has(e.from)&&!ids.has(e.to)){ids.add(e.to);eids.add(e.id)}if(ids.has(e.to)&&!ids.has(e.from)){ids.add(e.from);eids.add(e.id)}});
+                    return{nodes:graphData.nodes.filter(function(n){return ids.has(n.id)}),edges:graphData.edges.filter(function(e){return eids.has(e.id)}),errors:graphData.errors||[]}
+                  }
+                  return{nodes:[],edges:[],errors:[]}
+                }
+
+                async function renderGraph(){
+                  var cont=document.getElementById('graph-container');
+                  var vd=getViewData();
+                  if(!vd||!vd.nodes||!vd.nodes.length){
+                    if(g6Graph){g6Graph.destroy();g6Graph=null}
+                    cont.innerHTML='<div style="padding:40px;color:#6b7280;text-align:center">暂无数据</div>';
+                    return
+                  }
+                  positionsCache=await runElk(vd.nodes,vd.edges);
+
+                  var errorNodeSet=new Set;
+                  (graphData.errors||[]).forEach(function(e){(e.nodePath||[]).forEach(function(n){errorNodeSet.add(n)})});
+                  var errorEdgeSet=new Set;
+                  (graphData.errors||[]).forEach(function(e){(e.edgePath||[]).forEach(function(ed){errorEdgeSet.add(ed)})});
+
+                  var gn=vd.nodes.map(function(n){
+                    var pos=positionsCache?positionsCache[n.id]:{x:0,y:0};
+                    var isErr=n.isError||errorNodeSet.has(n.id);
+                    var w=n.width||140,h=n.height||52;
+                    return{id:n.id,x:pos.x,y:pos.y,width:w,height:h,
+                      label:currentView==='global'&&!isErr&&!n.isEntry&&!n.isTerminal?'':n.name+'\\n'+n.id,
+                      style:{fill:NODE_COLORS[n.type]||'#E5E7EB',stroke:isErr?'#DC2626':'#334155',lineWidth:isErr?4:1.5,radius:8},
+                      labelCfg:{style:{fill:'#111827',fontSize:11,fontWeight:isErr?700:400},position:'center'},
+                      anchorPoints:[[0,0.5],[1,0.5],[0.5,0],[0.5,1]],
+                      _data:n}
                   });
-                  const off=-tw/2;if(off)Object.keys(pos).forEach(id=>{pos[id].x+=off;});
-                  return{positions:pos,nodeLayer:nL,treeIds:tr};
+
+                  var ge=vd.edges.map(function(e){
+                    var isErr=e.isError||errorEdgeSet.has(e.id);
+                    var lc=isErr?'#DC2626':channelColor(e.type);
+                    return{id:e.id,source:e.from,target:e.to,label:e.type,
+                      style:{stroke:lc,lineWidth:isErr?4:1.5,lineDash:isErr?[6,4]:void 0,
+                        endArrow:{path:'M 0,0 L 8,4 L 8,-4 Z',fill:lc,d:8},radius:8,offset:8},
+                      labelCfg:{style:{fill:lc,fontSize:10,fontWeight:isErr?700:400},autoRotate:true},
+                      _data:e}
+                  });
+
+                  if(g6Graph){g6Graph.destroy();g6Graph=null}
+                  cont.innerHTML='';
+                  var w=cont.clientWidth||800,h=cont.clientHeight||620;
+                  g6Graph=new G6.Graph({
+                    container:'graph-container',width:w,height:h,
+                    modes:{default:['drag-canvas','zoom-canvas','click-select']},
+                    defaultNode:{type:'rect',size:[140,52]},
+                    defaultEdge:{type:'polyline',style:{stroke:'#94A3B8',lineWidth:1.5,endArrow:true},labelCfg:{autoRotate:true}},
+                    layout:{type:'none'},animate:true,fitView:true,fitViewPadding:[40,40,40,40]
+                  });
+                  g6Graph.data({nodes:gn,edges:ge});
+                  g6Graph.render();
+                  g6Graph.on('node:click',function(evt){var m=evt.item.getModel();showNodeDetail(m._data||m)});
+                  g6Graph.on('edge:click',function(evt){var m=evt.item.getModel();showEdgeDetail(m._data||m)});
                 }
-                let graphLayerMode='all';
-                function buildOption(mode='all'){
-                  const errorNodeIds=new Set((graphData.errors||[]).map(e=>e.startNodeId).filter(Boolean));
-                  const errorEdgeIds=new Set();
-                  const pathNodeIds=new Set((graphData.errors||[]).flatMap(e=>e.nodePath||[]));
-                  const pathEdgeIds=new Set((graphData.errors||[]).flatMap(e=>e.edgePath||[]));
-                  const focusErrorOnly=mode!=='all';
-                  const showPath=mode==='errorPath';
-                  const hasPos=graphData.nodes&&graphData.nodes.length>0&&graphData.nodes[0].x!==undefined;
-                  let nlayer={},tids={},lay={positions:{},nodeLayer:{},treeIds:{}};
-                  if(!hasPos){lay=computeLayout(graphData.nodes||[],graphData.edges||[]);nlayer=lay.nodeLayer||{};tids=lay.treeIds||{};}
-                  const nodes=(graphData.nodes||[]).map(n=>{const isError=errorNodeIds.has(n.id);const isPathNode=showPath&&pathNodeIds.has(n.id);const faded=focusErrorOnly&&!(isError||isPathNode);let x=0,y=0;if(hasPos){x=n.x;y=n.y;}else{const p=lay.positions?lay.positions[n.id]:null;if(p){x=p.x;y=p.y;}}return{id:n.id,name:n.name+'\\n'+n.id,value:n,x:x,y:y,symbolSize:isError?44:32,itemStyle:{color:nodeColorMap[n.type]||nodeColorMap.NORMAL,borderColor:isError?'#DC2626':isPathNode?'#F59E0B':'#334155',borderWidth:isError?4:isPathNode?3:1.5,opacity:faded?0.22:1},label:{show:true,color:'#111827',fontSize:10,opacity:faded?0.25:1}};});
-                  const links=(graphData.edges||[]).map(e=>{const isError=errorEdgeIds.has(e.id);const isPathEdge=showPath&&pathEdgeIds.has(e.id);const faded=focusErrorOnly&&!isPathEdge;const xt=tids[e.from]&&tids[e.to]&&tids[e.from]!==tids[e.to];let cv=0.15;if(!hasPos){const sl=nlayer[e.from],tl=nlayer[e.to];const dist=tl!==undefined&&sl!==undefined?Math.abs(tl-sl):1;if(dist>=3)cv=0.8;else if(dist>=2)cv=0.5;const srcPos=lay.positions?lay.positions[e.from]:null;if(srcPos&&srcPos.x>0)cv=-cv;}return{source:e.from,target:e.to,value:e,lineStyle:{color:isError?'#DC2626':isPathEdge?'#F59E0B':channelColor(e.type),width:isError?5:isPathEdge?4:xt?1.5:2,type:isError?'dashed':xt?'dotted':'solid',curveness:cv,opacity:faded?0.16:xt?0.4:0.95},label:{show:showPath&&isPathEdge,formatter:e.type,color:isError?'#DC2626':isPathEdge?'#B45309':'#475569',fontSize:11,opacity:faded?0.2:1}};});
-                  return {animationDuration:500,tooltip:{trigger:'item',formatter:function(params){if(params.dataType==='node'){const n=params.data.value;return '<b>'+n.name+' ('+n.id+')</b><br/>类型：'+(nodeTypeNameMap[n.type]||n.type)+'<br/>状态：'+(n.status==='error'?'错误相关节点':'正常')+'<br/>备注：'+(n.remark||'');}if(params.dataType==='edge'){const e=params.data.value;return '<b>'+e.from+' → '+e.to+'</b><br/>通道：'+e.type+'<br/>状态：'+(e.status==='error'?'错误链路':'正常')+'<br/>备注：'+(e.remark||'');}return'';}},series:[{type:'graph',layout:'none',roam:true,zoom:1,center:[0,0],draggable:true,edgeSymbol:['none','arrow'],edgeSymbolSize:[0,13],emphasis:{focus:'adjacency',lineStyle:{width:6}},data:nodes,links:links,label:{position:'inside'},edgeLabel:{show:showPath},lineStyle:{opacity:.95}}]};
+
+                async function switchView(v){
+                  currentView=v;
+                  document.querySelectorAll('[data-view]').forEach(function(b){b.classList.toggle('active',b.dataset.view===v)});
+                  await renderGraph()
                 }
-                function renderGraph(mode=graphLayerMode){ chart.setOption(buildOption(mode),true); chart.off('click'); chart.on('click',function(params){ if(params.dataType==='node')showNodeDetail(params.data.value); if(params.dataType==='edge')showEdgeDetail(params.data.value); }); }
-                function setGraphLayer(mode){graphLayerMode=mode;document.querySelectorAll('[data-graph-layer]').forEach(b=>b.classList.toggle('active',b.dataset.graphLayer===mode));renderGraph(mode);}
-                function focusErrorPath(){ setGraphLayer('errorPath'); }
-                function resetGraph(){ setGraphLayer('all'); }
-                function showNodeDetail(n){ document.getElementById('detail').innerHTML='<div class=\"kv\"><strong>节点编号：</strong>'+n.id+'</div><div class=\"kv\"><strong>节点名称：</strong>'+n.name+'</div><div class=\"kv\"><strong>节点类型：</strong>'+(nodeTypeNameMap[n.type]||n.type)+'</div><div class=\"kv\"><strong>状态：</strong>'+(n.status==='error'?'<span class=\"status-error\">错误相关节点</span>':'<span class=\"status-ok\">正常</span>')+'</div><div class=\"kv\"><strong>备注：</strong>'+(n.remark||'')+'</div>'; }
-                function showEdgeDetail(e){ document.getElementById('detail').innerHTML='<div class=\"kv\"><strong>边编号：</strong>'+e.id+'</div><div class=\"kv\"><strong>上游节点：</strong>'+e.from+'</div><div class=\"kv\"><strong>下游节点：</strong>'+e.to+'</div><div class=\"kv\"><strong>通道类型：</strong>'+e.type+'</div><div class=\"kv\"><strong>状态：</strong>'+(e.status==='error'?'<span class=\"status-error\">错误链路</span>':'<span class=\"status-ok\">正常</span>')+'</div><div class=\"kv\"><strong>备注：</strong>'+(e.remark||'')+'</div>'; }
-                function renderLegend(){ const legend=document.getElementById('legend'); legend.innerHTML=Object.entries(nodeTypeNameMap).filter(([t])=>nodeColorMap[t]).map(([type,name])=>'<div class=\"legend-item\"><span class=\"dot\" style=\"background:'+nodeColorMap[type]+'\"></span>'+name+'</div>').join(''); }
-                function renderErrors(){ const box=document.getElementById('errorList'); if(!graphData.errors||graphData.errors.length===0){box.innerHTML='<div class=\"kv\">暂无错误链路。</div>';return;} box.innerHTML=graphData.errors.map(err=>'<div class=\"error-box\"><strong>'+err.taskId+'｜'+err.errorCode+'</strong><br/>'+err.errorReason+'<br/><strong>错误路径：</strong>'+err.readablePath+'</div>').join(''); }
-                window.addEventListener('resize',()=>chart.resize()); renderLegend(); renderErrors(); renderGraph();
+
+                function showNodeDetail(n){
+                  document.getElementById('detail').innerHTML=
+                    '<div class="kv"><strong>节点编号：</strong>'+esc(n.id||'')+'</div>'+
+                    '<div class="kv"><strong>节点名称：</strong>'+esc(n.name||'')+'</div>'+
+                    '<div class="kv"><strong>节点类型：</strong>'+esc(NODE_TYPE_NAMES[n.type]||n.type||'')+'</div>'+
+                    '<div class="kv"><strong>状态：</strong>'+(n.isError?'<span class="status-error">错误相关节点</span>':'<span class="status-ok">正常</span>')+'</div>'+
+                    '<div class="kv"><strong>备注：</strong>'+esc(n.remark||'')+'</div>'
+                }
+                function showEdgeDetail(e){
+                  document.getElementById('detail').innerHTML=
+                    '<div class="kv"><strong>边编号：</strong>'+esc(e.id||'')+'</div>'+
+                    '<div class="kv"><strong>上游节点：</strong>'+esc(e.from||e.source||'')+'</div>'+
+                    '<div class="kv"><strong>下游节点：</strong>'+esc(e.to||e.target||'')+'</div>'+
+                    '<div class="kv"><strong>通道类型：</strong>'+esc(e.type||'')+'</div>'+
+                    '<div class="kv"><strong>状态：</strong>'+(e.isError?'<span class="status-error">错误链路</span>':'<span class="status-ok">正常</span>')+'</div>'
+                }
+                function esc(v){return String(v).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;')}
+
+                function renderLegend(){
+                  var el=document.getElementById('legend');
+                  el.innerHTML=Object.keys(NODE_TYPE_NAMES).filter(function(t){return NODE_COLORS[t]}).map(function(type){return'<div class="legend-item"><span class="dot" style="background:'+NODE_COLORS[type]+'"></span>'+NODE_TYPE_NAMES[type]+'</div>'}).join('')
+                }
+                function renderErrors(){
+                  var box=document.getElementById('errorList');
+                  if(!graphData.errors||!graphData.errors.length){box.innerHTML='<div class="kv">暂无错误链路。</div>';return}
+                  box.innerHTML=graphData.errors.map(function(err){return'<div class="error-box"><strong>'+esc(err.taskId)+' | '+esc(err.errorCode)+'</strong><br/>'+esc(err.errorReason)+'<br/><strong>路径：</strong>'+esc(err.readablePath||'')+'</div>'}).join('')
+                }
+
+                window.addEventListener('resize',function(){
+                  if(g6Graph&&!g6Graph.get('destroyed')){var c=document.getElementById('graph-container');if(c.clientWidth>0&&c.clientHeight>0)g6Graph.changeSize(c.clientWidth,c.clientHeight)}
+                });
+                renderLegend();renderErrors();renderGraph();
                 </script>
                 </body>
                 </html>

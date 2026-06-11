@@ -169,10 +169,16 @@ public class PipeCheckService {
         return results;
     }
 
+    private String pathId(CheckContext context) {
+        CheckTask task = context.getTask();
+        return task.getTaskId() + "-P" + String.format("%03d", context.getPathCounter()[0]);
+    }
+
     private CheckResult success(CheckContext context, Map<String, Node> nodeMap, Node endNode) {
         CheckTask task = context.getTask();
         return CheckResult.builder()
                 .taskId(task.getTaskId())
+                .pathId(pathId(context))
                 .startNodeId(task.getStartNodeId())
                 .startNodeName(nodeName(nodeMap, task.getStartNodeId()))
                 .startType(task.getStartType().name())
@@ -191,6 +197,7 @@ public class PipeCheckService {
         CheckTask task = context.getTask();
         return CheckResult.builder()
                 .taskId(task.getTaskId())
+                .pathId(pathId(context))
                 .startNodeId(task.getStartNodeId())
                 .startNodeName(nodeName(nodeMap, task.getStartNodeId()))
                 .startType(task.getStartType().name())
