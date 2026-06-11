@@ -1,0 +1,14 @@
+flowchart LR
+    U((用户/业务人员)) --> X[输入 Excel：Nodes / Edges / Tasks]
+    X --> P[Excel 解析器]
+    P --> N[(节点数据 Map)]
+    P --> E[(通道数据 List)]
+    P --> T[(检测任务 List)]
+    N --> G[有向图构建：邻接表 Graph]
+    E --> G
+    R[规则配置：rules.yml / DB] --> C[检测引擎：DFS 全路径遍历]
+    G --> C
+    T --> C
+    C --> O[(检测结果：路径/终点/状态/错误)]
+    O --> Y[结果 Excel：Result Sheet]
+    Y --> U

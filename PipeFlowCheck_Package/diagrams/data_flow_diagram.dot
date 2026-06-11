@@ -1,0 +1,31 @@
+digraph DFD {
+  graph [rankdir=LR, bgcolor="white", pad="0.3", nodesep="0.5", ranksep="0.7"];
+  node [fontname="Noto Sans CJK SC", fontsize=12];
+  edge [fontname="Noto Sans CJK SC", fontsize=10, color="#4A5568"];
+
+  User [shape=oval, style="filled", fillcolor="#FFF7E6", color="#B7791F", label="用户/业务人员"];
+  InputExcel [shape=folder, style="filled", fillcolor="#E6FFFA", color="#2C7A7B", label="输入 Excel\nNodes / Edges / Tasks"];
+  Parser [shape=box, style="rounded,filled", fillcolor="#E8F3FF", color="#2B6CB0", label="Excel 解析器"];
+  NodeStore [shape=cylinder, style="filled", fillcolor="#F0FFF4", color="#2F855A", label="节点数据\nMap<nodeId, Node>"];
+  EdgeStore [shape=cylinder, style="filled", fillcolor="#F0FFF4", color="#2F855A", label="通道数据\nList<Edge>"];
+  TaskStore [shape=cylinder, style="filled", fillcolor="#F0FFF4", color="#2F855A", label="检测任务\nList<CheckTask>"];
+  GraphBuild [shape=box, style="rounded,filled", fillcolor="#E8F3FF", color="#2B6CB0", label="有向图构建\n邻接表 Graph"];
+  Rules [shape=folder, style="filled", fillcolor="#FEEBC8", color="#C05621", label="规则配置\nrules.yml / DB"];
+  Engine [shape=box, style="rounded,filled", fillcolor="#E8F3FF", color="#2B6CB0", label="检测引擎\nDFS 全路径遍历"];
+  Results [shape=cylinder, style="filled", fillcolor="#F0FFF4", color="#2F855A", label="检测结果\n路径/终点/状态/错误"];
+  OutputExcel [shape=folder, style="filled", fillcolor="#E6FFFA", color="#2C7A7B", label="结果 Excel\nResult Sheet"];
+
+  User -> InputExcel [label="上传"];
+  InputExcel -> Parser [label="读取"];
+  Parser -> NodeStore [label="节点"];
+  Parser -> EdgeStore [label="通道"];
+  Parser -> TaskStore [label="任务"];
+  NodeStore -> GraphBuild;
+  EdgeStore -> GraphBuild;
+  GraphBuild -> Engine;
+  TaskStore -> Engine;
+  Rules -> Engine [label="规则约束"];
+  Engine -> Results [label="输出路径结果"];
+  Results -> OutputExcel [label="写入"];
+  OutputExcel -> User [label="下载"];
+}
