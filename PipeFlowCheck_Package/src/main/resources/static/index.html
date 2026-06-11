@@ -138,23 +138,22 @@ let elkInstance = null;
    ELK Layout
    ============================================================ */
 function elkLayoutOptions(nodeCount) {
-  let sn = 80, lg = 180, cg = 150;
-  if (nodeCount <= 30) { sn = 100; lg = 220; cg = 180; }
-  else if (nodeCount <= 100) { sn = 80; lg = 180; cg = 150; }
-  else { sn = 60; lg = 150; cg = 120; }
+  let sn = 80, lg = 200, cg = 160;
+  if (nodeCount <= 30) { sn = 60; lg = 150; cg = 120; }
+  else if (nodeCount <= 100) { sn = 80; lg = 200; cg = 160; }
+  else { sn = 100; lg = 250; cg = 200; }
   return {
     'elk.algorithm': 'layered',
-    'elk.direction': 'RIGHT',
+    'elk.direction': 'DOWN',
     'elk.edgeRouting': 'POLYLINE',
     'elk.spacing.nodeNode': String(sn),
-    'elk.spacing.edgeNode': '50',
-    'elk.spacing.edgeEdge': '30',
+    'elk.spacing.edgeNode': '40',
+    'elk.spacing.edgeEdge': '20',
     'elk.spacing.componentComponent': String(cg),
     'elk.layered.spacing.nodeNodeBetweenLayers': String(lg),
     'elk.layered.nodePlacement.strategy': 'NETWORK_SIMPLEX',
     'elk.layered.crossingMinimization.strategy': 'LAYER_SWEEP',
     'elk.layered.mergeEdges': 'true',
-    'elk.layered.mergeHierarchyEdges': 'true',
     'elk.partitioning.activate': 'false'
   };
 }
@@ -167,43 +166,46 @@ async function runElkLayout(nodes, edges) {
     }
   }
   if (!nodes || nodes.length === 0) return null;
-  const nodeMap = {};
-  nodes.forEach(n => { nodeMap[n.id] = n; });
+  // Use circle diameter as width/height for ELK
+  const R = (n) => (n.isEntry || n.isTerminal) ? 22 : 20;
   const elkChildren = nodes.map(n => ({
     id: n.id,
-    width: n.width || 140,
-    height: n.height || 52
+    width: R(n) * 2 + 4,
+    height: R(n) * 2 + 4
   }));
   const elkEdges = edges.map(e => ({
     id: e.id,
     sources: [e.from],
     targets: [e.to]
   }));
-  const elkGraph = {
-    id: 'root',
-    layoutOptions: elkLayoutOptions(nodes.length),
-    children: elkChildren,
-    edges: elkEdges
-  };
   try {
-    const result = await elkInstance.layout(elkGraph);
+    const result = await elkInstance.layout({
+      id: 'root',
+      layoutOptions: elkLayoutOptions(nodes.length),
+      children: elkChildren,
+      edges: elkEdges
+    });
     if (!result || !result.children) return null;
     const positions = {};
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
     result.children.forEach(child => {
       if (child.x !== undefined && child.y !== undefined) {
         positions[child.id] = { x: child.x, y: child.y };
+        if (child.x < minX) minX = child.x;
+        if (child.x > maxX) maxX = child.x;
+        if (child.y < minY) minY = child.y;
+        if (child.y > maxY) maxY = child.y;
       }
     });
-    // Center positions around origin
-    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-    Object.values(positions).forEach(p => {
-      if (p.x < minX) minX = p.x; if (p.x > maxX) maxX = p.x;
-      if (p.y < minY) minY = p.y; if (p.y > maxY) maxY = p.y;
-    });
+    // Scale positions so the max span is 1600px, centered around origin
+    const spanX = maxX - minX, spanY = maxY - minY;
+    const maxSpan = Math.max(spanX, spanY, 1);
+    const targetSpan = Math.min(1600, maxSpan);
+    const scale = targetSpan / maxSpan;
     const cx = (minX + maxX) / 2, cy = (minY + maxY) / 2;
     Object.keys(positions).forEach(id => {
-      positions[id].x -= cx;
-      positions[id].y -= cy;
+      positions[id].x = (positions[id].x - cx) * scale;
+      positions[id].y = (positions[id].y - cy) * scale;
     });
     return positions;
   } catch (e) {
@@ -231,81 +233,68 @@ async function renderGraph() {
   // Compute layout
   positionsCache = await runElkLayout(viewData.nodes, viewData.edges);
 
-  // Build G6 nodes with positions
+  // Build error node/edge sets
+  const errorNodeSet = new Set();
+  (graphData.errors || []).forEach(e => (e.nodePath || []).forEach(n => errorNodeSet.add(n)));
+  const errorEdgeSet = new Set();
+  (graphData.errors || []).forEach(e => (e.edgePath || []).forEach(ed => errorEdgeSet.add(ed)));
+
+  // Determine label visibility per node
+  const showAllLabels = currentView !== 'global';
+  const nodeRadius = (n) => (n.isEntry || n.isTerminal) ? 22 : 20;
+
   const g6Nodes = viewData.nodes.map(n => {
-    const pos = positionsCache ? positionsCache[n.id] : { x: 0, y: 0 };
-    const isError = n.isError || false;
-    const isEntry = n.isEntry || false;
-    const isTerminal = n.isTerminal || false;
-    const w = n.width || 140;
-    const h = n.height || 52;
+    // Use backend positions if ELK fails
+    const pos = positionsCache ? positionsCache[n.id] : { x: n.x || 0, y: n.y || 0 };
+    const isErr = n.isError || errorNodeSet.has(n.id);
+    const r = nodeRadius(n);
+    const showLabel = showAllLabels || isErr || n.isEntry || n.isTerminal;
     return {
       id: n.id,
       x: pos.x,
       y: pos.y,
-      width: w,
-      height: h,
-      label: currentView === 'global' && !isError && !isEntry && !isTerminal ? '' : (n.name + '\n' + n.id),
+      size: r * 2,
+      label: showLabel ? (n.name + '\n' + n.id) : '',
       style: {
         fill: NODE_COLORS[n.type] || '#E5E7EB',
-        stroke: isError ? '#DC2626' : '#334155',
-        lineWidth: isError ? 4 : 1.5,
-        radius: 8,
-        opacity: 1
+        stroke: isErr ? '#DC2626' : '#475569',
+        lineWidth: isErr ? 4 : 2,
+        opacity: 1,
+        shadowBlur: isErr ? 12 : 0,
+        shadowColor: isErr ? 'rgba(220,38,38,0.45)' : 'transparent'
       },
       labelCfg: {
-        style: { fill: '#111827', fontSize: 11, fontWeight: isError ? 700 : 400 },
-        position: 'center',
-        offset: 0
+        style: { fill: '#1f2937', fontSize: 10, fontWeight: isErr ? 700 : 400 },
+        position: 'bottom',
+        offset: 6
       },
       anchorPoints: [
-        [0, 0.5],  // left
-        [1, 0.5],  // right
-        [0.5, 0],  // top
-        [0.5, 1]   // bottom
+        [0.5, 0],   // top
+        [0.5, 1],   // bottom
+        [0, 0.5],   // left
+        [1, 0.5]    // right
       ],
-      // Store original data
       _data: n
     };
   });
 
-  const errorEdgeSet = new Set();
-  (viewData.errors || []).forEach(err => {
-    (err.edgePath || []).forEach(eid => errorEdgeSet.add(eid));
-  });
-  const errorNodeSet = new Set();
-  viewData.nodes.forEach(n => { if (n.isError) errorNodeSet.add(n.id); });
-  // Also from viewData errors' nodePath
-  (viewData.errors || []).forEach(err => {
-    (err.nodePath || []).forEach(nid => errorNodeSet.add(nid));
-  });
-
   const g6Edges = viewData.edges.map(e => {
     const isErr = e.isError || errorEdgeSet.has(e.id);
-    // Check if source/target are in error set for path highlighting
-    const pathErr = isErr || (errorNodeSet.has(e.from) && errorNodeSet.has(e.to));
-    const lineColor = isErr ? '#DC2626' : pathErr ? '#F59E0B' : channelColor(e.type);
-    const lineWidth = isErr ? 4 : pathErr ? 3 : 1.5;
-    const lineDash = isErr ? [6, 4] : pathErr ? [4, 3] : undefined;
+    const lc = isErr ? '#DC2626' : channelColor(e.type);
     return {
       id: e.id,
       source: e.from,
       target: e.to,
       label: e.type,
       style: {
-        stroke: lineColor,
-        lineWidth: lineWidth,
-        lineDash: lineDash,
-        endArrow: {
-          path: 'M 0,0 L 8,4 L 8,-4 Z',
-          fill: lineColor,
-          d: 8
-        },
-        radius: 8,
-        offset: 8
+        stroke: lc,
+        lineWidth: isErr ? 4 : 2,
+        lineDash: isErr ? [6, 4] : undefined,
+        endArrow: { path: 'M 0,0 L 8,4 L 8,-4 Z', fill: lc, d: 8 },
+        radius: 4
       },
       labelCfg: {
-        style: { fill: lineColor, fontSize: 10, fontWeight: isErr ? 700 : 400 },
+        style: { fill: lc, fontSize: 9, fontWeight: isErr ? 700 : 400 },
         autoRotate: true
       },
       _data: e
@@ -324,25 +313,32 @@ async function renderGraph() {
     width: width,
     height: height,
     modes: {
-      default: ['drag-canvas', 'zoom-canvas', 'drag-node', 'click-select']
+      default: ['drag-canvas', 'zoom-canvas', 'click-select']
     },
     defaultNode: {
-      type: 'rect',
-      size: [140, 52]
+      type: 'circle',
+      size: 40
     },
     defaultEdge: {
       type: 'polyline',
-      style: { stroke: '#94A3B8', lineWidth: 1.5, endArrow: true },
+      style: { stroke: '#94A3B8', lineWidth: 2, endArrow: true },
       labelCfg: { autoRotate: true }
     },
     layout: { type: 'none' },
-    animate: true,
-    fitView: true,
-    fitViewPadding: [40, 40, 40, 40]
+    animate: false,
+    fitView: false
   });
 
   g6Graph.data({ nodes: g6Nodes, edges: g6Edges });
   g6Graph.render();
+
+  // After render, fit to view once, then allow free zoom
+  g6Graph.fitView(40);
+  // Prevent zooming out too far
+  if (g6Graph.getZoom) {
+    const z = g6Graph.getZoom();
+    if (z < 0.15) g6Graph.zoomTo(0.15);
+  }
 
   // Click events
   g6Graph.on('node:click', evt => {
@@ -353,16 +349,6 @@ async function renderGraph() {
     const model = evt.item.getModel();
     showEdgeDetail(model._data || model);
   });
-
-  // Resize handler
-  const resizeHandler = () => {
-    if (g6Graph && !g6Graph.get('destroyed')) {
-      const w = container.clientWidth;
-      const h = container.clientHeight;
-      if (w > 0 && h > 0) g6Graph.changeSize(w, h);
-    }
-  };
-  window.g6ResizeHandler = resizeHandler;
 
   updateGraphCount(viewData);
 }

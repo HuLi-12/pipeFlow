@@ -731,91 +731,95 @@ public class VisualizationService {
                 function channelColor(t){return t==='RAIN'?'#0EA5E9':t==='SEWAGE'?'#64748B':t==='COMBINED'?'#8B5CF6':t==='LIFE_SEWAGE'?'#92400E':'#94A3B8'}
                 var currentView='global',g6Graph=null,elkInstance=null,positionsCache=null;
 
-                function elkOpts(nc){var sn=80,lg=180,cg=150;if(nc<=30){sn=100;lg=220;cg=180}else if(nc<=100){sn=80;lg=180;cg=150}else{sn=60;lg=150;cg=120}return{'elk.algorithm':'layered','elk.direction':'RIGHT','elk.edgeRouting':'POLYLINE','elk.spacing.nodeNode':String(sn),'elk.spacing.edgeNode':'50','elk.spacing.edgeEdge':'30','elk.spacing.componentComponent':String(cg),'elk.layered.spacing.nodeNodeBetweenLayers':String(lg),'elk.layered.nodePlacement.strategy':'NETWORK_SIMPLEX','elk.layered.crossingMinimization.strategy':'LAYER_SWEEP','elk.layered.mergeEdges':'true','elk.partitioning.activate':'false'}}
+	                function elkOpts(nc){var sn=80,lg=200,cg=160;if(nc<=30){sn=60;lg=150;cg=120}else if(nc<=100){sn=80;lg=200;cg=160}else{sn=100;lg=250;cg=200}return{'elk.algorithm':'layered','elk.direction':'DOWN','elk.edgeRouting':'POLYLINE','elk.spacing.nodeNode':String(sn),'elk.spacing.edgeNode':'40','elk.spacing.edgeEdge':'20','elk.spacing.componentComponent':String(cg),'elk.layered.spacing.nodeNodeBetweenLayers':String(lg),'elk.layered.nodePlacement.strategy':'NETWORK_SIMPLEX','elk.layered.crossingMinimization.strategy':'LAYER_SWEEP','elk.layered.mergeEdges':'true','elk.partitioning.activate':'false'}}
 
-                async function runElk(nodes,edges){
-                  if(!elkInstance){try{elkInstance=new ELK()}catch(e){console.warn('ELK fail',e);return null}}
-                  if(!nodes||!nodes.length)return null;
-                  var ch=nodes.map(function(n){return{id:n.id,width:n.width||140,height:n.height||52}});
-                  var ek=edges.map(function(e){return{id:e.id,sources:[e.from],targets:[e.to]}});
-                  try{
-                    var r=await elkInstance.layout({id:'root',layoutOptions:elkOpts(nodes.length),children:ch,edges:ek});
-                    if(!r||!r.children)return null;
-                    var pos={},mx=-1/0,my=-1/0,MX=1/0,MY=1/0;
-                    r.children.forEach(function(c){if(c.x!==void 0){pos[c.id]={x:c.x,y:c.y};if(c.x<mx)mx=c.x;if(c.x>MX)MX=c.x;if(c.y<my)my=c.y;if(c.y>MY)MY=c.y}});
-                    var cx=(mx+MX)/2,cy=(my+MY)/2;
-                    Object.keys(pos).forEach(function(id){pos[id].x-=cx;pos[id].y-=cy});
-                    return pos;
-                  }catch(e){console.warn('ELK layout fail',e);return null}
-                }
+	                function nodeR(n){return(n.isEntry||n.isTerminal)?22:20}
 
-                function getViewData(){
-                  if(!graphData||!graphData.nodes)return{nodes:[],edges:[],errors:[]};
-                  if(currentView==='global'){return graphData}
-                  if(currentView==='error'){
-                    var ids=new Set;
-                    (graphData.errors||[]).forEach(function(e){(e.nodePath||[]).forEach(function(n){ids.add(n)})});
-                    var eids=new Set;
-                    (graphData.errors||[]).forEach(function(e){(e.edgePath||[]).forEach(function(ed){eids.add(ed)})});
-                    var nds=graphData.nodes.filter(function(n){return ids.has(n.id)});
-                    graphData.edges.forEach(function(e){if(ids.has(e.from)&&!ids.has(e.to)){ids.add(e.to);eids.add(e.id)}if(ids.has(e.to)&&!ids.has(e.from)){ids.add(e.from);eids.add(e.id)}});
-                    return{nodes:graphData.nodes.filter(function(n){return ids.has(n.id)}),edges:graphData.edges.filter(function(e){return eids.has(e.id)}),errors:graphData.errors||[]}
-                  }
-                  return{nodes:[],edges:[],errors:[]}
-                }
+	                async function runElk(nodes,edges){
+	                  if(!elkInstance){try{elkInstance=new ELK()}catch(e){console.warn('ELK fail',e);return null}}
+	                  if(!nodes||!nodes.length)return null;
+	                  var ch=nodes.map(function(n){var r=nodeR(n);return{id:n.id,width:r*2+4,height:r*2+4}});
+	                  var ek=edges.map(function(e){return{id:e.id,sources:[e.from],targets:[e.to]}});
+	                  try{
+	                    var r=await elkInstance.layout({id:'root',layoutOptions:elkOpts(nodes.length),children:ch,edges:ek});
+	                    if(!r||!r.children)return null;
+	                    var pos={},mx=1/0,my=1/0,MX=-1/0,MY=-1/0;
+	                    r.children.forEach(function(c){if(c.x!==void 0){pos[c.id]={x:c.x,y:c.y};if(c.x<mx)mx=c.x;if(c.x>MX)MX=c.x;if(c.y<my)my=c.y;if(c.y>MY)MY=c.y}});
+	                    var spanX=MX-mx,spanY=MY-my,maxSpan=Math.max(spanX,spanY,1);
+	                    var scale=Math.min(1600,maxSpan)/maxSpan,cx=(mx+MX)/2,cy=(my+MY)/2;
+	                    Object.keys(pos).forEach(function(id){pos[id].x=(pos[id].x-cx)*scale;pos[id].y=(pos[id].y-cy)*scale});
+	                    return pos;
+	                  }catch(e){console.warn('ELK layout fail',e);return null}
+	                }
 
-                async function renderGraph(){
-                  var cont=document.getElementById('graph-container');
-                  var vd=getViewData();
-                  if(!vd||!vd.nodes||!vd.nodes.length){
-                    if(g6Graph){g6Graph.destroy();g6Graph=null}
-                    cont.innerHTML='<div style="padding:40px;color:#6b7280;text-align:center">暂无数据</div>';
-                    return
-                  }
-                  positionsCache=await runElk(vd.nodes,vd.edges);
+	                function getViewData(){
+	                  if(!graphData||!graphData.nodes)return{nodes:[],edges:[],errors:[]};
+	                  if(currentView==='global'){return graphData}
+	                  if(currentView==='error'){
+	                    var ids=new Set;
+	                    (graphData.errors||[]).forEach(function(e){(e.nodePath||[]).forEach(function(n){ids.add(n)})});
+	                    var eids=new Set;
+	                    (graphData.errors||[]).forEach(function(e){(e.edgePath||[]).forEach(function(ed){eids.add(ed)})});
+	                    graphData.edges.forEach(function(e){if(ids.has(e.from)&&!ids.has(e.to)){ids.add(e.to);eids.add(e.id)}if(ids.has(e.to)&&!ids.has(e.from)){ids.add(e.from);eids.add(e.id)}});
+	                    return{nodes:graphData.nodes.filter(function(n){return ids.has(n.id)}),edges:graphData.edges.filter(function(e){return eids.has(e.id)}),errors:graphData.errors||[]}
+	                  }
+	                  return{nodes:[],edges:[],errors:[]}
+	                }
 
-                  var errorNodeSet=new Set;
-                  (graphData.errors||[]).forEach(function(e){(e.nodePath||[]).forEach(function(n){errorNodeSet.add(n)})});
-                  var errorEdgeSet=new Set;
-                  (graphData.errors||[]).forEach(function(e){(e.edgePath||[]).forEach(function(ed){errorEdgeSet.add(ed)})});
+	                async function renderGraph(){
+	                  var cont=document.getElementById('graph-container');
+	                  var vd=getViewData();
+	                  if(!vd||!vd.nodes||!vd.nodes.length){
+	                    if(g6Graph){g6Graph.destroy();g6Graph=null}
+	                    cont.innerHTML='<div style="padding:40px;color:#6b7280;text-align:center">暂无数据</div>';
+	                    return
+	                  }
+	                  positionsCache=await runElk(vd.nodes,vd.edges);
 
-                  var gn=vd.nodes.map(function(n){
-                    var pos=positionsCache?positionsCache[n.id]:{x:0,y:0};
-                    var isErr=n.isError||errorNodeSet.has(n.id);
-                    var w=n.width||140,h=n.height||52;
-                    return{id:n.id,x:pos.x,y:pos.y,width:w,height:h,
-                      label:currentView==='global'&&!isErr&&!n.isEntry&&!n.isTerminal?'':n.name+'\\n'+n.id,
-                      style:{fill:NODE_COLORS[n.type]||'#E5E7EB',stroke:isErr?'#DC2626':'#334155',lineWidth:isErr?4:1.5,radius:8},
-                      labelCfg:{style:{fill:'#111827',fontSize:11,fontWeight:isErr?700:400},position:'center'},
-                      anchorPoints:[[0,0.5],[1,0.5],[0.5,0],[0.5,1]],
-                      _data:n}
-                  });
+	                  var errN=new Set;
+	                  (graphData.errors||[]).forEach(function(e){(e.nodePath||[]).forEach(function(n){errN.add(n)})});
+	                  var errE=new Set;
+	                  (graphData.errors||[]).forEach(function(e){(e.edgePath||[]).forEach(function(ed){errE.add(ed)})});
 
-                  var ge=vd.edges.map(function(e){
-                    var isErr=e.isError||errorEdgeSet.has(e.id);
-                    var lc=isErr?'#DC2626':channelColor(e.type);
-                    return{id:e.id,source:e.from,target:e.to,label:e.type,
-                      style:{stroke:lc,lineWidth:isErr?4:1.5,lineDash:isErr?[6,4]:void 0,
-                        endArrow:{path:'M 0,0 L 8,4 L 8,-4 Z',fill:lc,d:8},radius:8,offset:8},
-                      labelCfg:{style:{fill:lc,fontSize:10,fontWeight:isErr?700:400},autoRotate:true},
-                      _data:e}
-                  });
+	                  var showLabel=currentView!=='global';
+	                  var gn=vd.nodes.map(function(n){
+	                    var pos=positionsCache?positionsCache[n.id]:{x:n.x||0,y:n.y||0};
+	                    var isErr=n.isError||errN.has(n.id);
+	                    var r=nodeR(n);
+	                    var lbl=showLabel||isErr||n.isEntry||n.isTerminal?n.name+'\\n'+n.id:'';
+	                    return{id:n.id,x:pos.x,y:pos.y,size:r*2,label:lbl,
+	                      style:{fill:NODE_COLORS[n.type]||'#E5E7EB',stroke:isErr?'#DC2626':'#475569',lineWidth:isErr?4:2,shadowBlur:isErr?12:0,shadowColor:isErr?'rgba(220,38,38,0.45)':'transparent'},
+	                      labelCfg:{style:{fill:'#1f2937',fontSize:10,fontWeight:isErr?700:400},position:'bottom',offset:6},
+	                      anchorPoints:[[0.5,0],[0.5,1],[0,0.5],[1,0.5]],
+	                      _data:n}
+	                  });
 
-                  if(g6Graph){g6Graph.destroy();g6Graph=null}
-                  cont.innerHTML='';
-                  var w=cont.clientWidth||800,h=cont.clientHeight||620;
-                  g6Graph=new G6.Graph({
-                    container:'graph-container',width:w,height:h,
-                    modes:{default:['drag-canvas','zoom-canvas','click-select']},
-                    defaultNode:{type:'rect',size:[140,52]},
-                    defaultEdge:{type:'polyline',style:{stroke:'#94A3B8',lineWidth:1.5,endArrow:true},labelCfg:{autoRotate:true}},
-                    layout:{type:'none'},animate:true,fitView:true,fitViewPadding:[40,40,40,40]
-                  });
-                  g6Graph.data({nodes:gn,edges:ge});
-                  g6Graph.render();
-                  g6Graph.on('node:click',function(evt){var m=evt.item.getModel();showNodeDetail(m._data||m)});
-                  g6Graph.on('edge:click',function(evt){var m=evt.item.getModel();showEdgeDetail(m._data||m)});
-                }
+	                  var ge=vd.edges.map(function(e){
+	                    var isErr=e.isError||errE.has(e.id);
+	                    var lc=isErr?'#DC2626':channelColor(e.type);
+	                    return{id:e.id,source:e.from,target:e.to,label:e.type,
+	                      style:{stroke:lc,lineWidth:isErr?4:2,lineDash:isErr?[6,4]:void 0,endArrow:{path:'M 0,0 L 8,4 L 8,-4 Z',fill:lc,d:8},radius:4},
+	                      labelCfg:{style:{fill:lc,fontSize:9,fontWeight:isErr?700:400},autoRotate:true},
+	                      _data:e}
+	                  });
+
+	                  if(g6Graph){g6Graph.destroy();g6Graph=null}
+	                  cont.innerHTML='';
+	                  var w=cont.clientWidth||800,h=cont.clientHeight||620;
+	                  g6Graph=new G6.Graph({
+	                    container:'graph-container',width:w,height:h,
+	                    modes:{default:['drag-canvas','zoom-canvas','click-select']},
+	                    defaultNode:{type:'circle',size:40},
+	                    defaultEdge:{type:'polyline',style:{stroke:'#94A3B8',lineWidth:2,endArrow:true},labelCfg:{autoRotate:true}},
+	                    layout:{type:'none'},animate:false,fitView:false
+	                  });
+	                  g6Graph.data({nodes:gn,edges:ge});
+	                  g6Graph.render();
+	                  g6Graph.fitView(40);
+	                  if(g6Graph.getZoom){var z=g6Graph.getZoom();if(z<0.15)g6Graph.zoomTo(0.15)}
+	                  g6Graph.on('node:click',function(evt){var m=evt.item.getModel();showNodeDetail(m._data||m)});
+	                  g6Graph.on('edge:click',function(evt){var m=evt.item.getModel();showEdgeDetail(m._data||m)});
+	                }
 
                 async function switchView(v){
                   currentView=v;
