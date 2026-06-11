@@ -731,7 +731,7 @@ public class VisualizationService {
                 function channelColor(t){return t==='RAIN'?'#0EA5E9':t==='SEWAGE'?'#64748B':t==='COMBINED'?'#8B5CF6':t==='LIFE_SEWAGE'?'#92400E':'#94A3B8'}
                 var currentView='global',g6Graph=null,elkInstance=null,positionsCache=null;
 
-	                function elkOpts(nc){var sn=80,lg=200,cg=160;if(nc<=30){sn=60;lg=150;cg=120}else if(nc<=100){sn=80;lg=200;cg=160}else{sn=100;lg=250;cg=200}return{'elk.algorithm':'layered','elk.direction':'DOWN','elk.edgeRouting':'POLYLINE','elk.spacing.nodeNode':String(sn),'elk.spacing.edgeNode':'40','elk.spacing.edgeEdge':'20','elk.spacing.componentComponent':String(cg),'elk.layered.spacing.nodeNodeBetweenLayers':String(lg),'elk.layered.nodePlacement.strategy':'NETWORK_SIMPLEX','elk.layered.crossingMinimization.strategy':'LAYER_SWEEP','elk.layered.mergeEdges':'true','elk.partitioning.activate':'false'}}
+	                function elkOpts(nc){var sn=100,lg=250,cg=200;if(nc<=30){sn=60;lg=180;cg=120}else if(nc<=100){sn=80;lg=220;cg=160}else{sn=120;lg=300;cg=240}return{'elk.algorithm':'layered','elk.direction':'DOWN','elk.edgeRouting':'POLYLINE','elk.spacing.nodeNode':String(sn),'elk.spacing.edgeNode':'40','elk.spacing.edgeEdge':'20','elk.spacing.componentComponent':String(cg),'elk.layered.spacing.nodeNodeBetweenLayers':String(lg),'elk.layered.nodePlacement.strategy':'NETWORK_SIMPLEX','elk.layered.crossingMinimization.strategy':'LAYER_SWEEP','elk.layered.mergeEdges':'true','elk.partitioning.activate':'false'}}
 
 	                function nodeR(n){return(n.isEntry||n.isTerminal)?22:20}
 
@@ -746,7 +746,7 @@ public class VisualizationService {
 	                    var pos={},mx=1/0,my=1/0,MX=-1/0,MY=-1/0;
 	                    r.children.forEach(function(c){if(c.x!==void 0){pos[c.id]={x:c.x,y:c.y};if(c.x<mx)mx=c.x;if(c.x>MX)MX=c.x;if(c.y<my)my=c.y;if(c.y>MY)MY=c.y}});
 	                    var spanX=MX-mx,spanY=MY-my,maxSpan=Math.max(spanX,spanY,1);
-	                    var scale=Math.min(1600,maxSpan)/maxSpan,cx=(mx+MX)/2,cy=(my+MY)/2;
+	                    var scale=Math.min(3000,maxSpan)/maxSpan,cx=(mx+MX)/2,cy=(my+MY)/2;
 	                    Object.keys(pos).forEach(function(id){pos[id].x=(pos[id].x-cx)*scale;pos[id].y=(pos[id].y-cy)*scale});
 	                    return pos;
 	                  }catch(e){console.warn('ELK layout fail',e);return null}
@@ -788,7 +788,7 @@ public class VisualizationService {
 	                    var r=nodeR(n);
 	                    var lbl=showLabel||isErr||n.isEntry||n.isTerminal?n.name+'\\n'+n.id:'';
 	                    return{id:n.id,x:pos.x,y:pos.y,size:r*2,label:lbl,
-	                      style:{fill:NODE_COLORS[n.type]||'#E5E7EB',stroke:isErr?'#DC2626':'#475569',lineWidth:isErr?4:2,shadowBlur:isErr?12:0,shadowColor:isErr?'rgba(220,38,38,0.45)':'transparent'},
+	                      style:{fill:NODE_COLORS[n.type]||'#E5E7EB',stroke:isErr?'#DC2626':'#475569',lineWidth:isErr?5:2.5,shadowBlur:isErr?12:0,shadowColor:isErr?'rgba(220,38,38,0.45)':'transparent'},
 	                      labelCfg:{style:{fill:'#1f2937',fontSize:10,fontWeight:isErr?700:400},position:'bottom',offset:6},
 	                      anchorPoints:[[0.5,0],[0.5,1],[0,0.5],[1,0.5]],
 	                      _data:n}
@@ -798,7 +798,7 @@ public class VisualizationService {
 	                    var isErr=e.isError||errE.has(e.id);
 	                    var lc=isErr?'#DC2626':channelColor(e.type);
 	                    return{id:e.id,source:e.from,target:e.to,label:e.type,
-	                      style:{stroke:lc,lineWidth:isErr?4:2,lineDash:isErr?[6,4]:void 0,endArrow:{path:'M 0,0 L 8,4 L 8,-4 Z',fill:lc,d:8},radius:4},
+	                      style:{stroke:lc,lineWidth:isErr?5:3,lineDash:isErr?[8,5]:void 0,endArrow:{path:'M 0,0 L 14,6 L 14,-6 Z',fill:lc,d:14},radius:6},
 	                      labelCfg:{style:{fill:lc,fontSize:9,fontWeight:isErr?700:400},autoRotate:true},
 	                      _data:e}
 	                  });
@@ -810,13 +810,13 @@ public class VisualizationService {
 	                    container:'graph-container',width:w,height:h,
 	                    modes:{default:['drag-canvas','zoom-canvas','click-select']},
 	                    defaultNode:{type:'circle',size:40},
-	                    defaultEdge:{type:'polyline',style:{stroke:'#94A3B8',lineWidth:2,endArrow:true},labelCfg:{autoRotate:true}},
+	                    defaultEdge:{type:'polyline',style:{stroke:'#94A3B8',lineWidth:3,endArrow:{path:'M 0,0 L 14,6 L 14,-6 Z',d:14}},labelCfg:{autoRotate:true}},
 	                    layout:{type:'none'},animate:false,fitView:false
 	                  });
 	                  g6Graph.data({nodes:gn,edges:ge});
 	                  g6Graph.render();
 	                  g6Graph.fitView(40);
-	                  if(g6Graph.getZoom){var z=g6Graph.getZoom();if(z<0.15)g6Graph.zoomTo(0.15)}
+	                  if(g6Graph.getZoom){var z=g6Graph.getZoom();if(vd.nodes.length>50&&z<0.35)g6Graph.zoomTo(0.35)}
 	                  g6Graph.on('node:click',function(evt){var m=evt.item.getModel();showNodeDetail(m._data||m)});
 	                  g6Graph.on('edge:click',function(evt){var m=evt.item.getModel();showEdgeDetail(m._data||m)});
 	                }

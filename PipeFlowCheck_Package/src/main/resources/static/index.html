@@ -138,10 +138,10 @@ let elkInstance = null;
    ELK Layout
    ============================================================ */
 function elkLayoutOptions(nodeCount) {
-  let sn = 80, lg = 200, cg = 160;
-  if (nodeCount <= 30) { sn = 60; lg = 150; cg = 120; }
-  else if (nodeCount <= 100) { sn = 80; lg = 200; cg = 160; }
-  else { sn = 100; lg = 250; cg = 200; }
+  let sn = 100, lg = 250, cg = 200;
+  if (nodeCount <= 30) { sn = 60; lg = 180; cg = 120; }
+  else if (nodeCount <= 100) { sn = 80; lg = 220; cg = 160; }
+  else { sn = 120; lg = 300; cg = 240; }
   return {
     'elk.algorithm': 'layered',
     'elk.direction': 'DOWN',
@@ -197,10 +197,10 @@ async function runElkLayout(nodes, edges) {
         if (child.y > maxY) maxY = child.y;
       }
     });
-    // Scale positions so the max span is 1600px, centered around origin
+    // Scale positions so the max span is 3000px, centered around origin
     const spanX = maxX - minX, spanY = maxY - minY;
     const maxSpan = Math.max(spanX, spanY, 1);
-    const targetSpan = Math.min(1600, maxSpan);
+    const targetSpan = Math.min(3000, maxSpan);
     const scale = targetSpan / maxSpan;
     const cx = (minX + maxX) / 2, cy = (minY + maxY) / 2;
     Object.keys(positions).forEach(id => {
@@ -288,13 +288,13 @@ async function renderGraph() {
       label: e.type,
       style: {
         stroke: lc,
-        lineWidth: isErr ? 4 : 2,
-        lineDash: isErr ? [6, 4] : undefined,
-        endArrow: { path: 'M 0,0 L 8,4 L 8,-4 Z', fill: lc, d: 8 },
-        radius: 4
+        lineWidth: isErr ? 5 : 3,
+        lineDash: isErr ? [8, 5] : undefined,
+        endArrow: { path: 'M 0,0 L 14,6 L 14,-6 Z', fill: lc, d: 14 },
+        radius: 6
       },
       labelCfg: {
-        style: { fill: lc, fontSize: 9, fontWeight: isErr ? 700 : 400 },
+        style: { fill: lc, fontSize: 10, fontWeight: isErr ? 700 : 400 },
         autoRotate: true
       },
       _data: e
@@ -321,7 +321,7 @@ async function renderGraph() {
     },
     defaultEdge: {
       type: 'polyline',
-      style: { stroke: '#94A3B8', lineWidth: 2, endArrow: true },
+      style: { stroke: '#94A3B8', lineWidth: 3, endArrow: { path: 'M 0,0 L 14,6 L 14,-6 Z', d: 14 } },
       labelCfg: { autoRotate: true }
     },
     layout: { type: 'none' },
@@ -332,12 +332,14 @@ async function renderGraph() {
   g6Graph.data({ nodes: g6Nodes, edges: g6Edges });
   g6Graph.render();
 
-  // After render, fit to view once, then allow free zoom
-  g6Graph.fitView(40);
-  // Prevent zooming out too far
-  if (g6Graph.getZoom) {
+  // Initial view: fit for small graphs, fixed zoom for large graphs
+  const nn = viewData.nodes.length;
+  if (nn <= 50) {
+    g6Graph.fitView(40);
+  } else {
+    g6Graph.fitView(40);
     const z = g6Graph.getZoom();
-    if (z < 0.15) g6Graph.zoomTo(0.15);
+    if (z < 0.35) g6Graph.zoomTo(0.35);
   }
 
   // Click events
