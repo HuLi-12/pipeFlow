@@ -148,7 +148,7 @@ function elkLayoutOptions(nodeCount) {
     'elk.edgeRouting': 'POLYLINE',
     'elk.spacing.nodeNode': String(sn),
     'elk.spacing.edgeNode': '40',
-    'elk.spacing.edgeEdge': '20',
+    'elk.spacing.edgeEdge': '40',
     'elk.spacing.componentComponent': String(cg),
     'elk.layered.spacing.nodeNodeBetweenLayers': String(lg),
     'elk.layered.nodePlacement.strategy': 'NETWORK_SIMPLEX',
@@ -290,11 +290,11 @@ async function renderGraph() {
         stroke: lc,
         lineWidth: isErr ? 5 : 3,
         lineDash: isErr ? [8, 5] : undefined,
-        endArrow: { path: 'M 0,0 L 14,6 L 14,-6 Z', fill: lc, d: 14 },
+        endArrow: { path: 'M 0,0 L 14,6 L 14,-6 Z', fill: lc },
         radius: 6
       },
       labelCfg: {
-        style: { fill: lc, fontSize: 10, fontWeight: isErr ? 700 : 400 },
+        style: { fill: lc, fontSize: 11, fontWeight: isErr ? 700 : 400, stroke: '#fff', lineWidth: 3 },
         autoRotate: true
       },
       _data: e

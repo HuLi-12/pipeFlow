@@ -731,7 +731,7 @@ public class VisualizationService {
                 function channelColor(t){return t==='RAIN'?'#0EA5E9':t==='SEWAGE'?'#64748B':t==='COMBINED'?'#8B5CF6':t==='LIFE_SEWAGE'?'#92400E':'#94A3B8'}
                 var currentView='global',g6Graph=null,elkInstance=null,positionsCache=null;
 
-	                function elkOpts(nc){var sn=100,lg=250,cg=200;if(nc<=30){sn=60;lg=180;cg=120}else if(nc<=100){sn=80;lg=220;cg=160}else{sn=120;lg=300;cg=240}return{'elk.algorithm':'layered','elk.direction':'DOWN','elk.edgeRouting':'POLYLINE','elk.spacing.nodeNode':String(sn),'elk.spacing.edgeNode':'40','elk.spacing.edgeEdge':'20','elk.spacing.componentComponent':String(cg),'elk.layered.spacing.nodeNodeBetweenLayers':String(lg),'elk.layered.nodePlacement.strategy':'NETWORK_SIMPLEX','elk.layered.crossingMinimization.strategy':'LAYER_SWEEP','elk.layered.mergeEdges':'true','elk.partitioning.activate':'false'}}
+	                function elkOpts(nc){var sn=100,lg=250,cg=200;if(nc<=30){sn=60;lg=180;cg=120}else if(nc<=100){sn=80;lg=220;cg=160}else{sn=120;lg=300;cg=240}return{'elk.algorithm':'layered','elk.direction':'DOWN','elk.edgeRouting':'POLYLINE','elk.spacing.nodeNode':String(sn),'elk.spacing.edgeNode':'40','elk.spacing.edgeEdge':'40','elk.spacing.componentComponent':String(cg),'elk.layered.spacing.nodeNodeBetweenLayers':String(lg),'elk.layered.nodePlacement.strategy':'NETWORK_SIMPLEX','elk.layered.crossingMinimization.strategy':'LAYER_SWEEP','elk.layered.mergeEdges':'true','elk.partitioning.activate':'false'}}
 
 	                function nodeR(n){return(n.isEntry||n.isTerminal)?22:20}
 
@@ -798,8 +798,8 @@ public class VisualizationService {
 	                    var isErr=e.isError||errE.has(e.id);
 	                    var lc=isErr?'#DC2626':channelColor(e.type);
 	                    return{id:e.id,source:e.from,target:e.to,label:e.type,
-	                      style:{stroke:lc,lineWidth:isErr?5:3,lineDash:isErr?[8,5]:void 0,endArrow:{path:'M 0,0 L 14,6 L 14,-6 Z',fill:lc,d:14},radius:6},
-	                      labelCfg:{style:{fill:lc,fontSize:9,fontWeight:isErr?700:400},autoRotate:true},
+	                      style:{stroke:lc,lineWidth:isErr?5:3,lineDash:isErr?[8,5]:void 0,endArrow:{path:'M 0,0 L 14,6 L 14,-6 Z',fill:lc},radius:6},
+	                      labelCfg:{style:{fill:lc,fontSize:11,fontWeight:isErr?700:400,stroke:'#fff',lineWidth:3},autoRotate:true},
 	                      _data:e}
 	                  });
 
@@ -810,7 +810,7 @@ public class VisualizationService {
 	                    container:'graph-container',width:w,height:h,
 	                    modes:{default:['drag-canvas','zoom-canvas','click-select']},
 	                    defaultNode:{type:'circle',size:40},
-	                    defaultEdge:{type:'polyline',style:{stroke:'#94A3B8',lineWidth:3,endArrow:{path:'M 0,0 L 14,6 L 14,-6 Z',d:14}},labelCfg:{autoRotate:true}},
+	                    defaultEdge:{type:'polyline',style:{stroke:'#94A3B8',lineWidth:3,endArrow:{path:'M 0,0 L 14,6 L 14,-6 Z'}},labelCfg:{autoRotate:true}},
 	                    layout:{type:'none'},animate:false,fitView:false
 	                  });
 	                  g6Graph.data({nodes:gn,edges:ge});
