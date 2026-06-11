@@ -42,3 +42,7 @@ __pycache__/
 
 # Temp files
 *~$*
+
+# Design docs
+**/docs/*.docx
+**/docs/*.pdf
